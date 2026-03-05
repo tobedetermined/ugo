@@ -43,7 +43,7 @@ class UGOVisualizer {
     const bottomLine = new Polyline3DElement({
       strokeColor:           'rgba(255, 30, 30, 0.5)',
       strokeWidth:           1.5,
-      altitudeMode:          AltitudeMode.ABSOLUTE,
+      altitudeMode:          AltitudeMode.RELATIVE_TO_GROUND,
       drawsOccludedSegments: true,
     });
     bottomLine.coordinates = frames.map(f => ({
@@ -71,11 +71,11 @@ class UGOVisualizer {
       const strut = new Polyline3DElement({
         strokeColor:          'rgba(255, 30, 30, 0.55)',
         strokeWidth:          1,
-        altitudeMode:         AltitudeMode.ABSOLUTE,
+        altitudeMode:         AltitudeMode.RELATIVE_TO_GROUND,
         drawsOccludedSegments: true,
       });
       strut.coordinates = [
-        { lat: f.eye.lat, lng: f.eye.lng, altitude: f.eye.altitude },
+        { lat: f.eye.lat, lng: f.eye.lng, altitude: f.eye.altitude - (f.center.altitude || 0) },
         { lat: f.eye.lat, lng: f.eye.lng, altitude: 0 },
       ];
       this.map.appendChild(strut);

@@ -27,9 +27,13 @@ async function initMap() {
   });
 
   document.getElementById('map-container').appendChild(map);
+  map.tabIndex = 0;
+  map.focus();
 
-  recorder   = new UGORecorder(map, 200);
+  recorder   = new UGORecorder(map, 50);
   visualizer = new UGOVisualizer(map);
+
+  document.getElementById('search-bar').addEventListener('submit', _onSearch);
 
   // Live camera readout — update on every camera change event
   ['gmp-centerchange', 'gmp-rangechange', 'gmp-tiltchange', 'gmp-headingchange']
@@ -45,6 +49,7 @@ async function initMap() {
   // while still allowing the click event to fire normally
   document.querySelectorAll('#hud-controls button').forEach(btn => {
     btn.addEventListener('mousedown', e => e.preventDefault());
+    btn.addEventListener('click', () => map.focus());
   });
 
   // Hide the Google Maps alpha warning banner whenever it appears
@@ -61,6 +66,9 @@ async function initMap() {
 // Shift+↓ — tilt toward horizon (tilt increases)
 // Shift+↑ — tilt toward top-down (tilt decreases)
 function _onKeyDown(e) {
+  if (e.target.tagName === 'INPUT') return;
+  if (document.activeElement !== map) map.focus();
+
   if (e.key === 'r' || e.key === 'R') {
     map.flyCameraTo({
       endCamera: {
@@ -155,10 +163,37 @@ function _updateCameraReadout() {
   const f = (n, d) => (n != null ? n.toFixed(d) : '—');
   document.getElementById('c-lat').textContent   = f(map.center.lat, 6);
   document.getElementById('c-lng').textContent   = f(map.center.lng, 6);
-  document.getElementById('c-alt').textContent   = f(map.center.altitude, 0) + ' m';
+  const tiltRad = (map.tilt || 0) * Math.PI / 180;
+  const eyeAlt  = (map.center.altitude || 0) + (map.range || 0) * Math.cos(tiltRad);
+  document.getElementById('c-alt').textContent   = f(eyeAlt, 0) + ' m';
   document.getElementById('c-range').textContent = f(map.range, 0) + ' m';
   document.getElementById('c-tilt').textContent  = f(map.tilt, 1) + '°';
   document.getElementById('c-hdg').textContent   = f(map.heading, 1) + '°';
+}
+
+// ── Search ────────────────────────────────────────────────────────────────────
+
+async function _onSearch(e) {
+  e.preventDefault();
+  const query = document.getElementById('search-input').value.trim();
+  if (!query) return;
+
+  const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=1`;
+  const res  = await fetch(url, { headers: { 'Accept-Language': 'en' } });
+  const data = await res.json();
+  if (!data.length) return;
+
+  map.flyCameraTo({
+    endCamera: {
+      center:  { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon), altitude: 0 },
+      range:   15000,
+      tilt:    45,
+      heading: 0,
+    },
+    durationMillis: 24000,
+  });
+
+  document.getElementById('search-input').blur();
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────

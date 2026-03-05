@@ -28,7 +28,14 @@
       <div id="stat-frames" class="hidden"></div>
       <div id="stat-duration" class="hidden"></div>
     </div>
+
   </div>
+
+  <!-- Search bar -->
+  <form id="search-bar" autocomplete="off">
+    <input id="search-input" type="text" placeholder="Fly to city…" spellcheck="false">
+    <button type="submit">GO</button>
+  </form>
 
   <!-- Camera state readout -->
   <div id="camera-hud">
@@ -45,13 +52,12 @@
   <script src="js/app.js"></script>
 
   <!--
-    Replace YOUR_API_KEY_HERE with your Google Maps API key.
     Enable: Maps JavaScript API
     Restrict to: localhost, 127.0.0.1
   -->
   <script
     async
-    src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDfaXNo8TK8XSuIqeu-NyxFU2zQqNaCkxo&v=alpha&callback=initMap">
+    src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDfaXNo8TK8XSuIqeu-NyxFU2zQqNaCkxo&v=beta&callback=initMap">
   </script>
 
 </body>
