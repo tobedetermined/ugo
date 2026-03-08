@@ -97,6 +97,10 @@ async function initMap() {
   document.addEventListener('keydown', _onKeyDown, true);
 
   _initDrag();
+
+  // Load a UGO from a Gist ID passed as ?gist=ID in the URL
+  const gistId = new URLSearchParams(location.search).get('gist');
+  if (gistId) _loadFromGist(gistId);
 }
 
 // R       — reset tilt + heading (Google Earth style)
@@ -307,6 +311,52 @@ async function _onFileSelected(e) {
   if (_appState === 'recording' || _appState === 'paused') {
     recorder.stop();
   }
+  visualizer.clear();
+  currentRecording = recording;
+  document.getElementById('btn-fill').classList.remove('active');
+  _metrics.maxAltitude = recording.metadata.maxAltitude ?? null;
+  _metrics.distance    = recording.metadata.distance    ?? 0;
+  _metrics.elapsedMs   = recording.metadata.totalDurationMs ?? null;
+  _updateDevHud();
+
+  _setText('stat-status', 'Rendering path…');
+  try {
+    await visualizer.renderRecording(currentRecording, ({ requests, locations, error }) => {
+      _metrics.elevationRequests  += requests;
+      _metrics.elevationLocations += locations;
+      if (error) _metrics.elevationError = error;
+      _updateDevHud();
+    });
+  } catch (err) {
+    console.error('UGO: renderRecording failed', err);
+  }
+
+  _enterState('visualised');
+}
+
+async function _loadFromGist(gistId) {
+  _setText('stat-status', 'Loading UGO…');
+  let kmlText;
+  try {
+    const res  = await fetch(`https://api.github.com/gists/${gistId}`);
+    if (!res.ok) throw new Error(`Gist not found (${res.status})`);
+    const data = await res.json();
+    const file = Object.values(data.files)[0];
+    const raw  = await fetch(file.raw_url);
+    kmlText    = await raw.text();
+  } catch (err) {
+    _setText('stat-status', 'Could not load UGO');
+    return;
+  }
+
+  let recording;
+  try {
+    recording = importKML(kmlText);
+  } catch (err) {
+    _setText('stat-status', err.message);
+    return;
+  }
+
   visualizer.clear();
   currentRecording = recording;
   document.getElementById('btn-fill').classList.remove('active');
