@@ -22,10 +22,18 @@ let recorder;
 let visualizer;
 let currentRecording = null;
 let _appState = 'ready'; // 'ready' | 'recording' | 'paused' | 'visualised'
+let _durationTimer = null;
+let issTracker;
+let tiangongTracker;
+let _satTimer = null;
 
 const _metrics = {
   elevationRequests:  0,
   elevationLocations: 0,
+  maxAltitude:        null,
+  distance:           0,
+  _lastEyeLat:        null,
+  _lastEyeLng:        null,
 };
 
 // Called by the Maps JS API once it has loaded (callback=initMap in script tag)
@@ -41,8 +49,15 @@ async function initMap() {
   map.tabIndex = 0;
   map.focus();
 
-  recorder   = new UGORecorder(map, 50);
-  visualizer = new UGOVisualizer(map);
+  recorder    = new UGORecorder(map, 50);
+  visualizer  = new UGOVisualizer(map);
+  issTracker      = new SatTracker(map, 25544, 'rgba(255, 220, 50, 0.95)');
+  // tiangongTracker = new SatTracker(map, 48274, 'rgba(50, 180, 255, 0.95)', 'n2yo');
+  issTracker.show();
+  // tiangongTracker.show();
+  document.getElementById('btn-iss-toggle').classList.add('active');
+  // document.getElementById('btn-tiangong-toggle').classList.add('active');
+  _startSatTimer();
 
   document.getElementById('search-bar').addEventListener('submit', _onSearch);
 
@@ -59,6 +74,10 @@ async function initMap() {
   document.getElementById('btn-load').addEventListener('click',   () => document.getElementById('file-input').click());
   document.getElementById('file-input').addEventListener('change', _onFileSelected);
   document.getElementById('btn-home').addEventListener('click',   _resetCamera);
+  document.getElementById('btn-iss-toggle').addEventListener('click',      _toggleISS);
+  // document.getElementById('btn-tiangong-toggle').addEventListener('click', _toggleTiangong);
+  document.getElementById('btn-iss').addEventListener('click', _flyToISS);
+  // document.getElementById('btn-css').addEventListener('click', _flyToCSS);
 
   // Prevent buttons from stealing keyboard focus from the map —
   // mousedown is where focus transfer happens, preventDefault stops it
@@ -190,27 +209,42 @@ function _onRecordButton() {
     currentRecording = null;
     visualizer.clear();
     document.getElementById('btn-fill').classList.remove('active');
+    _metrics.maxAltitude = null;
+    _metrics.distance    = 0;
+    _metrics._lastEyeLat = null;
+    _metrics._lastEyeLng = null;
 
-    recorder.onFrame = (frameCount, elapsedMs) => {
-      _metrics.frameCount  = frameCount;
-      _metrics.elapsedMs   = elapsedMs;
-      _updateDevHud();
+    recorder.onFrame = (frameCount) => {
+      _metrics.frameCount = frameCount;
     };
 
     recorder.start();
+    clearInterval(_durationTimer);
+    _durationTimer = setInterval(() => {
+      _metrics.elapsedMs = recorder.getElapsedMs();
+      _updateDevHud();
+    }, 1000);
     _enterState('recording');
 
   } else if (_appState === 'recording') {
+    clearInterval(_durationTimer);
+    _durationTimer = null;
     recorder.pause();
     _enterState('paused');
 
   } else if (_appState === 'paused') {
     recorder.resume();
+    _durationTimer = setInterval(() => {
+      _metrics.elapsedMs = recorder.getElapsedMs();
+      _updateDevHud();
+    }, 1000);
     _enterState('recording');
   }
 }
 
 async function _stopRecording() {
+  clearInterval(_durationTimer);
+  _durationTimer = null;
   currentRecording = recorder.stop();
   _enterState('ready'); // temporarily reset while rendering
 
@@ -218,6 +252,9 @@ async function _stopRecording() {
     _setText('stat-status', 'No path captured');
     return;
   }
+
+  currentRecording.metadata.maxAltitude = _metrics.maxAltitude;
+  currentRecording.metadata.distance    = _metrics.distance;
 
   _setText('stat-status', 'Rendering path…');
   try {
@@ -261,6 +298,10 @@ async function _onFileSelected(e) {
   visualizer.clear();
   currentRecording = recording;
   document.getElementById('btn-fill').classList.remove('active');
+  _metrics.maxAltitude = recording.metadata.maxAltitude ?? null;
+  _metrics.distance    = recording.metadata.distance    ?? 0;
+  _metrics.elapsedMs   = recording.metadata.totalDurationMs ?? null;
+  _updateDevHud();
 
   _setText('stat-status', 'Rendering path…');
   try {
@@ -280,18 +321,104 @@ async function _onFileSelected(e) {
 function _clearRecording() {
   visualizer.clear();
   currentRecording = null;
-
   document.getElementById('btn-fill').classList.remove('active');
+  _metrics.maxAltitude = null;
+  _metrics.distance    = 0;
+  _metrics._lastEyeLat = null;
+  _metrics._lastEyeLng = null;
+  _metrics.frameCount  = null;
+  _metrics.elapsedMs   = null;
+  _metrics.elevationRequests  = 0;
+  _metrics.elevationLocations = 0;
+  _metrics.elevationError     = '';
+  _updateDevHud();
   _enterState('ready');
 }
 
+function _toggleISS() {
+  const btn = document.getElementById('btn-iss-toggle');
+  if (issTracker._visible) {
+    issTracker.hide();
+    btn.classList.remove('active');
+    document.getElementById('btn-iss').disabled = true;
+  } else {
+    issTracker.show();
+    btn.classList.add('active');
+    document.getElementById('btn-iss').disabled = false;
+  }
+}
+
+function _startSatTimer() {
+  clearInterval(_satTimer);
+  const trackers = [issTracker/*, tiangongTracker*/];
+  let i = 0;
+  _satTimer = setInterval(() => {
+    const t = trackers[i % trackers.length];
+    if (t._visible) t._fetch();
+    i++;
+  }, 1000);
+}
+
+function _toggleTiangong() {
+  const btn = document.getElementById('btn-tiangong-toggle');
+  if (tiangongTracker._visible) {
+    tiangongTracker.hide();
+    btn.classList.remove('active');
+    document.getElementById('btn-css').disabled = true;
+  } else {
+    tiangongTracker.show();
+    btn.classList.add('active');
+    document.getElementById('btn-css').disabled = false;
+  }
+}
+
+async function _flyToCSS() {
+  const pos = tiangongTracker.lastPos;
+  if (!pos) return;
+  map.flyCameraTo({
+    endCamera: {
+      center:  { lat: pos.lat, lng: pos.lng, altitude: pos.altitudeM },
+      tilt:    70,
+      heading: 0,
+      range:   1000000,
+    },
+    durationMillis: 3000,
+  });
+}
+
+async function _flyToISS() {
+  const pos = issTracker.lastPos;
+  if (!pos) return;
+  map.flyCameraTo({
+    endCamera: {
+      center:  { lat: pos.lat, lng: pos.lng, altitude: pos.altitudeM },
+      tilt:    70,
+      heading: 0,
+      range:   1000000,
+    },
+    durationMillis: 3000,
+  });
+}
+
 function _resetCamera() {
+  clearInterval(_durationTimer);
+  _durationTimer = null;
   if (_appState === 'recording' || _appState === 'paused') {
     recorder.stop();
   }
   visualizer.clear();
   currentRecording = null;
   document.getElementById('btn-fill').classList.remove('active');
+  _metrics.maxAltitude = null;
+  _metrics.distance    = 0;
+  _metrics._lastEyeLat = null;
+  _metrics._lastEyeLng = null;
+  _metrics.frameCount  = null;
+  _metrics.elapsedMs   = null;
+  _metrics.elevationRequests  = 0;
+  _metrics.elevationLocations = 0;
+  _metrics.elevationError     = '';
+  _updateDevHud();
   _enterState('ready');
   map.flyCameraTo({
     endCamera:      INITIAL_CAMERA,
@@ -344,6 +471,30 @@ function _updateCameraReadout() {
   document.getElementById('c-range').textContent = f(map.range, 0) + ' m';
   document.getElementById('c-tilt').textContent  = f(map.tilt, 1) + '°';
   document.getElementById('c-hdg').textContent   = f(map.heading, 1) + '°';
+  if (_appState === 'recording') {
+    let hudDirty = false;
+    if (_metrics.maxAltitude == null || eyeAlt > _metrics.maxAltitude) {
+      _metrics.maxAltitude = eyeAlt;
+      hudDirty = true;
+    }
+    const EARTH_R    = 6371000;
+    const bearingRad = ((( map.heading || 0) + 180) % 360) * Math.PI / 180;
+    const latRad     = map.center.lat * Math.PI / 180;
+    const lngRad     = map.center.lng * Math.PI / 180;
+    const horizDist  = (map.range || 0) * Math.sin(tiltRad);
+    const angDist    = horizDist / EARTH_R;
+    const eyeLatRad  = Math.asin(Math.sin(latRad) * Math.cos(angDist) + Math.cos(latRad) * Math.sin(angDist) * Math.cos(bearingRad));
+    const eyeLngRad  = lngRad + Math.atan2(Math.sin(bearingRad) * Math.sin(angDist) * Math.cos(latRad), Math.cos(angDist) - Math.sin(latRad) * Math.sin(eyeLatRad));
+    const lat = eyeLatRad * 180 / Math.PI;
+    const lng = eyeLngRad * 180 / Math.PI;
+    if (_metrics._lastEyeLat != null) {
+      _metrics.distance += _haversineKm(_metrics._lastEyeLat, _metrics._lastEyeLng, lat, lng);
+      hudDirty = true;
+    }
+    _metrics._lastEyeLat = lat;
+    _metrics._lastEyeLng = lng;
+    if (hudDirty) _updateDevHud();
+  }
 }
 
 // ── Search ────────────────────────────────────────────────────────────────────
@@ -406,10 +557,21 @@ function _hide(id) {
 function _updateDevHud() {
   document.getElementById('dev-frames').textContent        = _metrics.frameCount  ?? 0;
   document.getElementById('dev-duration').textContent      = _metrics.elapsedMs != null ? _formatDuration(_metrics.elapsedMs) : '—';
+  document.getElementById('dev-distance').textContent      = _metrics.distance > 0 ? _metrics.distance.toFixed(1) + ' km' : '—';
+  document.getElementById('dev-max-altitude').textContent  = _metrics.maxAltitude != null ? (_metrics.maxAltitude / 1000).toFixed(1) + ' km' : '—';
   document.getElementById('dev-elev-requests').textContent  = _metrics.elevationRequests;
   document.getElementById('dev-elev-locations').textContent = _metrics.elevationLocations;
   const errEl = document.getElementById('dev-elev-error');
   errEl.textContent = _metrics.elevationError || '';
+}
+
+function _haversineKm(lat1, lng1, lat2, lng2) {
+  const R = 6371;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLng = (lng2 - lng1) * Math.PI / 180;
+  const a = Math.sin(dLat / 2) ** 2 +
+            Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
 function _formatDuration(ms) {

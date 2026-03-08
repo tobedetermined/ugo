@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>UGO — User Generated Orbit</title>
+  <link rel="icon" type="image/svg+xml" href="../favicon.svg">
   <link rel="stylesheet" href="../css/style.css">
 </head>
 <body>
@@ -19,13 +20,23 @@
     <div id="hud-controls">
       <button id="btn-record">● REC</button>
       <button id="btn-stop" disabled>■ STOP</button>
-      <button id="btn-clear" disabled>↺ CLEAR</button>
       <button id="btn-fill" disabled>◧ FILL</button>
+      <button id="btn-clear" disabled>↺ CLEAR</button>
+      <div class="transport-sep"></div>
       <button id="btn-save" disabled>↓ SAVE</button>
-      <div class="transport-sep"></div>
       <button id="btn-load">↑ LOAD</button>
-      <div class="transport-sep"></div>
       <button id="btn-home">⌂ RESET</button>
+      <div class="transport-sep"></div>
+      <div class="split-btn">
+        <button id="btn-iss-toggle" class="split-left">ISS</button>
+        <button id="btn-iss" class="split-right">→</button>
+      </div>
+      <!-- CSS/Tiangong tracking disabled — N2YO update issue, revisit later
+      <div class="split-btn">
+        <button id="btn-tiangong-toggle" class="split-left">CSS</button>
+        <button id="btn-css" class="split-right">→</button>
+      </div>
+      -->
       <input id="file-input" type="file" accept=".kml" style="display:none">
     </div>
   </div>
@@ -50,6 +61,8 @@
   <div id="dev-hud" class="hidden">
     <div id="dev-title">DEV METRICS</div>
     <div class="dev-row"><span class="dev-label">duration</span><span id="dev-duration">—</span></div>
+    <div class="dev-row"><span class="dev-label">distance</span><span id="dev-distance">—</span></div>
+    <div class="dev-row"><span class="dev-label">max altitude</span><span id="dev-max-altitude">—</span></div>
     <div class="dev-row"><span class="dev-label">frames</span><span id="dev-frames">0</span></div>
     <div class="dev-row"><span class="dev-label">elev locations</span><span id="dev-elev-locations">0</span></div>
     <div class="dev-row"><span class="dev-label">elev requests</span><span id="dev-elev-requests">0</span></div>
@@ -59,6 +72,7 @@
   <script src="../js/recorder.js"></script>
   <script src="../js/visualizer.js"></script>
   <script src="../js/kml.js"></script>
+  <script src="../js/iss.js"></script>
   <script src="../js/app.js"></script>
 
   <!--

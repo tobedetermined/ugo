@@ -158,9 +158,51 @@ html, body {
 }
 
 #btn-fill.active {
-  background: rgba(255, 30, 30, 0.18) !important;
-  border-color: rgba(255, 30, 30, 0.7) !important;
-  color: #ff5555 !important;
+  background: rgba(255, 30, 30, 0.25) !important;
+  border-color: rgba(255, 255, 255, 0.18) !important;
+  color: #fff !important;
+}
+
+.split-btn {
+  display: flex;
+}
+
+.split-btn .split-left {
+  border-radius: 3px 0 0 3px !important;
+  border-right: none !important;
+  flex: 1;
+}
+
+.split-btn .split-right {
+  border-radius: 0 3px 3px 0 !important;
+  padding: 0 10px !important;
+}
+
+.split-btn .split-left,
+#btn-iss-toggle,
+#btn-tiangong-toggle {
+  color: rgba(150, 150, 150, 0.7) !important;
+  border-color: rgba(150, 150, 150, 0.3) !important;
+}
+
+#btn-iss-toggle.active {
+  background: rgba(30, 200, 80, 0.15) !important;
+  border-color: rgba(30, 200, 80, 0.7) !important;
+  color: #20c850 !important;
+}
+
+#btn-iss-toggle.active + .split-right {
+  border-color: rgba(30, 200, 80, 0.7) !important;
+}
+
+#btn-tiangong-toggle.active {
+  background: rgba(50, 180, 255, 0.15) !important;
+  border-color: rgba(50, 180, 255, 0.7) !important;
+  color: #32b4ff !important;
+}
+
+#btn-tiangong-toggle.active + .split-right {
+  border-color: rgba(50, 180, 255, 0.7) !important;
 }
 
 /* ── Dev metrics panel (top-right) ── */
