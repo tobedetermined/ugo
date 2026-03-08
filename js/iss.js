@@ -50,7 +50,8 @@ class SatTracker {
         lng   = pos.satlongitude;
         altKm = pos.sataltitude;
       } else {
-        const res  = await fetch(`https://api.wheretheiss.at/v1/satellites/${this.noradId}`);
+        const workerUrl = (window.UGO_WORKER_URL || 'https://usergeneratedorbitbot.navarenko.workers.dev') + '/iss';
+        const res  = await fetch(workerUrl);
         if (res.status === 429) return null;
         const data = await res.json();
         if (typeof data.latitude !== 'number') return null;
