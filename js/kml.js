@@ -72,7 +72,7 @@ function exportKML(recording) {
      xmlns:gx="http://www.google.com/kml/ext/2.2">
   <Document>
     <name>${_escapeXml(name)}</name>
-    <description>User Generated Orbit — recorded with UGO (tobedetermined.github.io/ugo)</description>
+    <description>User Generated Orbit — recorded with UGO (usergeneratedorbit.com)</description>
     <LookAt>
       <longitude>${((recording.metadata.boundingBox.east + recording.metadata.boundingBox.west) / 2).toFixed(6)}</longitude>
       <latitude>${((recording.metadata.boundingBox.north + recording.metadata.boundingBox.south) / 2).toFixed(6)}</latitude>
