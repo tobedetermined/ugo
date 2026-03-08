@@ -9,3 +9,8 @@ ugo-modern-architecture.md
 
 # Local API key config (never commit)
 orbit/config.js
+config.js
+telemetry-config.js
+
+# Local planning notes (never commit)
+memory/

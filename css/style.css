@@ -221,7 +221,8 @@ html, body {
   min-width: 180px;
 }
 
-#dev-hud.hidden {
+#dev-hud.hidden,
+#camera-hud.hidden {
   display: none;
 }
 
@@ -276,7 +277,7 @@ html, body {
 }
 
 #search-input::placeholder {
-  color: rgba(255, 255, 255, 0.3);
+  color: rgba(255, 255, 255, 0.55);
 }
 
 #search-input:focus {
@@ -285,7 +286,7 @@ html, body {
 
 #search-bar button {
   background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.18);
+  border: 1px solid rgba(255, 255, 255, 0.35);
   border-radius: 3px;
   color: #fff;
   font-family: 'Courier New', Courier, monospace;

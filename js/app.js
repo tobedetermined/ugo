@@ -115,7 +115,9 @@ function _onKeyDown(e) {
   }
 
   if (e.key === '`') {
-    document.getElementById('dev-hud').classList.toggle('hidden');
+    const hide = !document.getElementById('dev-hud').classList.contains('hidden');
+    document.getElementById('dev-hud').classList.toggle('hidden', hide);
+    document.getElementById('camera-hud').classList.toggle('hidden', hide);
     return;
   }
 
@@ -269,6 +271,16 @@ async function _stopRecording() {
   }
 
   _enterState('visualised');
+
+  // Auto-save to Gist archive
+  const kml = exportKML(currentRecording);
+  const isDev = location.hostname === 'localhost' || location.hostname === '127.0.0.1' || new URLSearchParams(location.search).has('dev');
+  const env = isDev ? ' [dev]' : '';
+  createGist(
+    `ugo-${currentRecording.id}.kml`,
+    kml,
+    `UGO recording — ${currentRecording.name}${env}`
+  );
 }
 
 function _saveRecording() {
