@@ -42,9 +42,9 @@ async function initMap() {
 
   let startCamera = INITIAL_CAMERA;
   const params = new URLSearchParams(location.search);
-  if (params.has('gist')) {
+  if (params.has('ugo')) {
     try {
-      const gistId = params.get('gist');
+      const gistId = params.get('ugo');
       const workerBase = window.UGO_WORKER_URL || 'https://usergeneratedorbitbot.navarenko.workers.dev';
 
       // Fetch IP location and gist position concurrently
@@ -120,11 +120,11 @@ async function initMap() {
     btn.addEventListener('click', () => map.focus());
   });
 
-  // Hide the Google Maps alpha warning banner whenever it appears
-  const _bannerObserver = new MutationObserver(() => {
-    document.querySelectorAll('[aria-label*="alpha channel"]').forEach(el => el.remove());
-  });
-  _bannerObserver.observe(document.body, { childList: true, subtree: true });
+  // NOTE: Hiding this banner likely violates Google Maps Platform ToS (Section 11.4)
+  // const _bannerObserver = new MutationObserver(() => {
+  //   document.querySelectorAll('[aria-label*="alpha channel"]').forEach(el => el.remove());
+  // });
+  // _bannerObserver.observe(document.body, { childList: true, subtree: true });
 
   // Keyboard shortcuts — capture phase so we intercept before the map handles them
   document.addEventListener('keydown', _onKeyDown, true);
@@ -148,8 +148,8 @@ async function initMap() {
     });
   });
 
-  // Load a UGO from a Gist ID passed as ?gist=ID in the URL
-  const gistId = params.get('gist');
+  // Load a UGO from a UGO ID passed as ?ugo=ID in the URL
+  const gistId = params.get('ugo');
   if (gistId) {
     _loadFromGist(gistId);
   } else {

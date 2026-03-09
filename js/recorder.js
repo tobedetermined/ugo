@@ -202,7 +202,7 @@ class UGORecorder {
 
     return {
       id:         (crypto.randomUUID?.() ?? Math.random().toString(36).slice(2)),
-      name:       `UGO ${new Date().toISOString().slice(0, 16).replace('T', ' ')}`,
+      name:       `UGO ${new Date().toISOString().slice(0, 16).replace('T', ' ')} UTC`,
       createdAt:  new Date().toISOString(),
       segments:   this.segments.map(s => s.frames),
       sampleIntervalMs: this.intervalMs,

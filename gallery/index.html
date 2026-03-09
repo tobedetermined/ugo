@@ -265,7 +265,6 @@
   <div id="grid"></div>
 
   <script src="edit-config.js" onerror="void 0"></script>
-  <script src="../js/kml.js"></script>
   <script>
     const WORKER = 'https://usergeneratedorbitbot.navarenko.workers.dev';
 
@@ -294,33 +293,25 @@
       const status = document.getElementById('status');
       const grid   = document.getElementById('grid');
 
-      let gistList;
+      let cards;
       try {
-        const res = await fetch(`${WORKER}/gists`);
-        gistList  = await res.json();
+        const res = await fetch(`${WORKER}/gists/cards`);
+        cards     = await res.json();
       } catch (e) {
         status.textContent = 'could not load';
         return;
       }
 
-      if (!gistList.length) {
+      if (!cards.length) {
         status.textContent = 'no recordings yet';
         return;
       }
 
-      const visible = gistList.filter(g => !(g.description || '').includes('[hidden]'));
+      const visible = cards.filter(c => !(c.description || '').includes('[hidden]'));
       status.textContent = `${visible.length} UGO${visible.length !== 1 ? 's' : ''}`;
 
-      // Load all KMLs in parallel and build cards
-      const results = await Promise.allSettled(
-        gistList.map(async g => {
-          const res  = await fetch(g.rawUrl);
-          const text = await res.text();
-          return { gist: g, rec: importKML(text) };
-        })
-      );
-      for (const r of results) {
-        if (r.status === 'fulfilled') grid.appendChild(buildCard(r.value.gist, r.value.rec));
+      for (const card of cards) {
+        grid.appendChild(buildCard(card));
       }
 
       // Reverse-geocode — use localStorage cache, only call Nominatim for misses
@@ -373,30 +364,34 @@
       btn.disabled = false;
     }
 
-    function buildCard(gist, recording) {
-      const bb        = recording.metadata.boundingBox;
-      const centerLat = (bb.north + bb.south) / 2;
-      const centerLng = (bb.east  + bb.west)  / 2;
-      const date      = new Date(gist.createdAt).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
-      const dur       = formatDuration(recording.metadata.totalDurationMs);
-      const dist      = recording.metadata.distance ? recording.metadata.distance.toFixed(1) + ' km' : null;
+    function buildCard(card) {
+      const dur       = formatDuration(card.metadata.totalDurationMs);
+      const dist      = card.metadata.distance ? card.metadata.distance.toFixed(1) + ' km' : null;
+      const date      = new Date(card.createdAt).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
       const isLocalhost = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
-      const tag       = isLocalhost ? ((gist.description || '').match(/\[(dev|local)\]/)?.[1]?.toUpperCase() || null) : null;
-      const isHidden  = (gist.description || '').includes('[hidden]');
-
-      const motionType = recording.metadata?.motionType || 'manual';
+      const tag       = isLocalhost ? ((card.description || '').match(/\[(dev|local)\]/)?.[1]?.toUpperCase() || null) : null;
+      const isHidden  = (card.description || '').includes('[hidden]');
 
       const a = document.createElement('a');
       a.className          = 'card' + (isHidden ? ' hidden-card' : '');
-      a.href               = `/?gist=${gist.id}`;
+      a.href               = `/?ugo=${card.id}`;
       a.target             = '_blank';
-      a.dataset.motionType = motionType;
+      a.dataset.motionType = card.metadata.motionType || 'manual';
 
-      // SVG sketch
-      const svg = buildSVG(recording);
+      // SVG sketch — use localStorage cache to skip recomputation on repeat visits
+      const svgCacheKey = `ugo-svg-v4-${card.id}`;
+      const cachedSvg   = localStorage.getItem(svgCacheKey);
+      let svg;
+      if (cachedSvg) {
+        const tmp = document.createElement('div');
+        tmp.innerHTML = cachedSvg;
+        svg = tmp.firstChild;
+        svg._pulseAnim = svg.querySelector('animate');
+      } else {
+        svg = buildSVG(card);
+        try { localStorage.setItem(svgCacheKey, svg.outerHTML); } catch (e) { /* storage full */ }
+      }
       a.appendChild(svg);
-
-      // Trigger pulse animation on hover
       a.addEventListener('mouseenter', () => svg._pulseAnim?.beginElement());
 
       // Hide/show button
@@ -406,7 +401,7 @@
       hideBtn.addEventListener('click', e => {
         e.preventDefault();
         e.stopPropagation();
-        toggleHidden(gist, a);
+        toggleHidden(card, a);
       });
       a.appendChild(hideBtn);
 
@@ -414,18 +409,14 @@
       const meta = document.createElement('div');
       meta.className = 'card-meta';
 
-      const allFrames  = recording.segments.flat();
-      const firstFrame = allFrames[0];
-      const lastFrame  = allFrames[allFrames.length - 1];
-
       const loc = document.createElement('div');
       loc.className        = 'card-location loading';
       loc.textContent      = '···';
-      loc.dataset.startLat = firstFrame.eye.lat;
-      loc.dataset.startLng = firstFrame.eye.lng;
-      loc.dataset.endLat   = lastFrame.eye.lat;
-      loc.dataset.endLng   = lastFrame.eye.lng;
-      loc.dataset.gistId   = gist.id;
+      loc.dataset.startLat = card.firstFrame.lat;
+      loc.dataset.startLng = card.firstFrame.lng;
+      loc.dataset.endLat   = card.lastFrame.lat;
+      loc.dataset.endLng   = card.lastFrame.lng;
+      loc.dataset.gistId   = card.id;
       meta.appendChild(loc);
 
       const details = document.createElement('div');
@@ -444,20 +435,21 @@
       return a;
     }
 
-    function buildSVG(recording) {
+    // card.path is an array of segments, each segment is [{lat, lng}, ...]
+    function buildSVG(card) {
       const W = 260, H = 160;
       const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
       svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
       svg.setAttribute('class', 'card-sketch');
       svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
+      svg.setAttribute('shape-rendering', 'geometricPrecision');
 
       const ns  = 'http://www.w3.org/2000/svg';
       const pad = 0.15;
 
-      // Use eye positions for a richer path shape
-      const allFrames = recording.segments.flat();
-      const lats = allFrames.map(f => f.eye.lat);
-      const lngs = allFrames.map(f => f.eye.lng);
+      const allPts = card.path.flat();
+      const lats   = allPts.map(p => p.lat);
+      const lngs   = allPts.map(p => p.lng);
       const minLat = Math.min(...lats), maxLat = Math.max(...lats);
       const minLng = Math.min(...lngs), maxLng = Math.max(...lngs);
       const latRange = (maxLat - minLat) || 0.001;
@@ -466,9 +458,9 @@
       const toX = lng => ((lng - minLng) / lngRange) * W * (1 - 2 * pad) + W * pad;
       const toY = lat => H - ((lat - minLat) / latRange) * H * (1 - 2 * pad) - H * pad;
 
-      // Graticule — round lat/lng grid lines
-      const latStep = niceStep(latRange);
-      const lngStep = niceStep(lngRange);
+      // Graticule
+      const latStep   = niceStep(latRange);
+      const lngStep   = niceStep(lngRange);
       const graticule = document.createElementNS(ns, 'g');
       graticule.setAttribute('stroke', 'rgba(255,255,255,0.06)');
       graticule.setAttribute('stroke-width', '0.5');
@@ -486,48 +478,68 @@
       }
       svg.appendChild(graticule);
 
-      // Gradient path — draw segments as short lines fading from dim to bright
-      // Also build a single path string + calculate pixel length for pulse animation
+      // Build smooth bezier path string for a segment using midpoint quadratic method.
+      // Each pair of consecutive sample points becomes a Q curve through their midpoint,
+      // making curves fluid regardless of sample density.
+      function smoothSeg(seg) {
+        if (seg.length < 2) return '';
+        const pts = seg.map(p => [toX(p.lng), toY(p.lat)]);
+        let d = `M ${pts[0][0].toFixed(1)},${pts[0][1].toFixed(1)}`;
+        for (let i = 0; i < pts.length - 1; i++) {
+          const mx = ((pts[i][0] + pts[i+1][0]) / 2).toFixed(1);
+          const my = ((pts[i][1] + pts[i+1][1]) / 2).toFixed(1);
+          d += ` Q ${pts[i][0].toFixed(1)},${pts[i][1].toFixed(1)} ${mx},${my}`;
+        }
+        d += ` L ${pts[pts.length-1][0].toFixed(1)},${pts[pts.length-1][1].toFixed(1)}`;
+        return d;
+      }
+
+      // Gradient path — smooth bezier path elements fading from dim to bright
       let pathData = '';
       let totalLen = 0;
 
-      for (const segment of recording.segments) {
+      for (const segment of card.path) {
         if (segment.length < 2) continue;
         const n = segment.length;
+        // Draw smooth path per segment with opacity gradient via multiple short paths
         for (let i = 0; i < n - 1; i++) {
-          const x1 = toX(segment[i].eye.lng),   y1 = toY(segment[i].eye.lat);
-          const x2 = toX(segment[i+1].eye.lng), y2 = toY(segment[i+1].eye.lat);
+          const x1 = toX(segment[i].lng),   y1 = toY(segment[i].lat);
+          const x2 = toX(segment[i+1].lng), y2 = toY(segment[i+1].lat);
+          const mx  = ((x1 + x2) / 2).toFixed(1);
+          const my  = ((y1 + y2) / 2).toFixed(1);
           const opacity = 0.15 + 0.5 * (i / (n - 1));
-          const line = document.createElementNS(ns, 'line');
-          line.setAttribute('x1', x1.toFixed(1)); line.setAttribute('y1', y1.toFixed(1));
-          line.setAttribute('x2', x2.toFixed(1)); line.setAttribute('y2', y2.toFixed(1));
-          line.setAttribute('stroke', '#ff2020');
-          line.setAttribute('stroke-width', '1.5');
-          line.setAttribute('stroke-linecap', 'round');
-          line.setAttribute('opacity', opacity.toFixed(2));
-          svg.appendChild(line);
+          // Use the previous midpoint as start so segments join smoothly
+          const prevX = i > 0 ? ((toX(segment[i-1].lng) + x1) / 2).toFixed(1) : x1.toFixed(1);
+          const prevY = i > 0 ? ((toY(segment[i-1].lat) + y1) / 2).toFixed(1) : y1.toFixed(1);
+          const seg_path = document.createElementNS(ns, 'path');
+          seg_path.setAttribute('d', `M ${prevX},${prevY} Q ${x1.toFixed(1)},${y1.toFixed(1)} ${mx},${my}`);
+          seg_path.setAttribute('fill', 'none');
+          seg_path.setAttribute('stroke', '#ff2020');
+          seg_path.setAttribute('stroke-width', '1.5');
+          seg_path.setAttribute('stroke-linecap', 'round');
+          seg_path.setAttribute('opacity', opacity.toFixed(2));
+          svg.appendChild(seg_path);
           totalLen += Math.sqrt((x2-x1)**2 + (y2-y1)**2);
         }
-        pathData += (pathData ? ' M' : 'M') + segment.map(f =>
-          `${toX(f.eye.lng).toFixed(1)},${toY(f.eye.lat).toFixed(1)}`).join(' L');
+        pathData += (pathData ? ' ' : '') + smoothSeg(segment);
       }
 
       // Glow filter
       const defs   = document.createElementNS(ns, 'defs');
       const filter = document.createElementNS(ns, 'filter');
       filter.setAttribute('id', `glow-${Math.random().toString(36).slice(2)}`);
-      const blur = document.createElementNS(ns, 'feGaussianBlur');
+      const blur  = document.createElementNS(ns, 'feGaussianBlur');
       blur.setAttribute('stdDeviation', '2.5');
       blur.setAttribute('result', 'blur');
-      const merge  = document.createElementNS(ns, 'feMerge');
-      const node1  = document.createElementNS(ns, 'feMergeNode'); node1.setAttribute('in', 'blur');
-      const node2  = document.createElementNS(ns, 'feMergeNode'); node2.setAttribute('in', 'SourceGraphic');
+      const merge = document.createElementNS(ns, 'feMerge');
+      const node1 = document.createElementNS(ns, 'feMergeNode'); node1.setAttribute('in', 'blur');
+      const node2 = document.createElementNS(ns, 'feMergeNode'); node2.setAttribute('in', 'SourceGraphic');
       merge.appendChild(node1); merge.appendChild(node2);
       filter.appendChild(blur); filter.appendChild(merge);
       defs.appendChild(filter);
       svg.appendChild(defs);
 
-      // Animated pulse — bright dashed segment traveling along the full path
+      // Animated pulse
       const dashLen = Math.max(12, totalLen * 0.08);
       const pulse   = document.createElementNS(ns, 'path');
       pulse.setAttribute('d', pathData);
@@ -550,25 +562,23 @@
       anim.setAttribute('calcMode', 'linear');
       pulse.appendChild(anim);
       svg.appendChild(pulse);
-
-      // Trigger pulse on card hover
       svg._pulseAnim = anim;
 
-      // Start dot — large red filled circle
-      const first = allFrames[0];
+      // Start dot
+      const first = allPts[0];
       const startDot = document.createElementNS(ns, 'circle');
-      startDot.setAttribute('cx', toX(first.eye.lng).toFixed(1));
-      startDot.setAttribute('cy', toY(first.eye.lat).toFixed(1));
+      startDot.setAttribute('cx', toX(first.lng).toFixed(1));
+      startDot.setAttribute('cy', toY(first.lat).toFixed(1));
       startDot.setAttribute('r', '4');
       startDot.setAttribute('fill', '#ff2020');
       startDot.setAttribute('opacity', '0.9');
       svg.appendChild(startDot);
 
-      // End dot — small hollow ring
-      const last = allFrames[allFrames.length - 1];
+      // End dot
+      const last = allPts[allPts.length - 1];
       const endDot = document.createElementNS(ns, 'circle');
-      endDot.setAttribute('cx', toX(last.eye.lng).toFixed(1));
-      endDot.setAttribute('cy', toY(last.eye.lat).toFixed(1));
+      endDot.setAttribute('cx', toX(last.lng).toFixed(1));
+      endDot.setAttribute('cy', toY(last.lat).toFixed(1));
       endDot.setAttribute('r', '3');
       endDot.setAttribute('fill', 'none');
       endDot.setAttribute('stroke', 'rgba(255,255,255,0.4)');
