@@ -17,6 +17,15 @@ const INITIAL_CAMERA = {
   heading: 77.2,
 };
 
+// Starting camera for the welcome sequence — eye position matches start of the reference UGO path
+// (eye at ~lng -125.77, lat 37.09, alt 34km looking toward SF Bay)
+const WELCOME_CAMERA = {
+  center:  { lat: 37.790850, lng: -122.190771, altitude: 0 },
+  range:   220000,
+  tilt:    82,
+  heading: 76,
+};
+
 let map;
 let recorder;
 let visualizer;
@@ -44,8 +53,9 @@ const _metrics = {
 async function initMap() {
   const { Map3DElement, MapMode } = await google.maps.importLibrary('maps3d');
 
-  let startCamera = INITIAL_CAMERA;
   const params = new URLSearchParams(location.search);
+  const returning = params.has('ugo') ? true : !!sessionStorage.getItem('ugo-returning');
+  let startCamera = (!params.has('ugo') && !returning) ? WELCOME_CAMERA : INITIAL_CAMERA;
   if (params.has('ugo')) {
     try {
       const gistId = params.get('ugo');
@@ -140,10 +150,10 @@ async function initMap() {
     _loadFromGist(gistId);
   } else {
     // Restore last session recording only when returning from another page (not on hard reload)
-    const returning = sessionStorage.getItem('ugo-returning');
     sessionStorage.removeItem('ugo-returning');
     const saved = localStorage.getItem('ugo-session');
     if (returning && saved) _restoreSession(saved);
+    if (!returning) new WelcomeMessage(map, INITIAL_CAMERA).show();
   }
 
   // Tour mode — disabled for now
