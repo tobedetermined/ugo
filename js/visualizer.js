@@ -47,8 +47,14 @@ class UGOVisualizer {
   }
 
   // Fetches terrain elevation at the eye lat/lng for every frame, in batches of 512.
+  // If all frames already have a cached groundElevation (stored on first render and
+  // embedded in the gist JSON), the API is skipped entirely on subsequent loads.
   // Falls back to center.altitude if the Elevation API is unavailable or errors.
   async _fetchEyeElevations(frames, onMetrics) {
+    if (frames.every(f => f.eye.groundElevation != null)) {
+      return frames.map(f => f.eye.groundElevation);
+    }
+
     try {
       const elevator   = new google.maps.ElevationService();
       const BATCH      = 512;
@@ -61,6 +67,12 @@ class UGOVisualizer {
         });
         elevations.push(...result.results.map(r => r.elevation));
         if (onMetrics) onMetrics({ requests: 1, locations: batch.length });
+      }
+
+      // Cache back into frames so the next exportKML embeds them in the gist,
+      // and future loads (shared ?ugo= links) skip the API entirely.
+      for (let i = 0; i < frames.length; i++) {
+        frames[i].eye.groundElevation = elevations[i];
       }
 
       return elevations;

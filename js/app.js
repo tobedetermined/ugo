@@ -21,6 +21,8 @@ let map;
 let recorder;
 let visualizer;
 let currentRecording = null;
+let _sharedUgoId = null;          // set when loaded via ?ugo= URL param
+let _preloadedRecording = null;   // KML pre-fetched during initMap to avoid a second fetch
 let _appState = 'ready'; // 'ready' | 'recording' | 'paused' | 'visualised'
 let _durationTimer = null;
 let issTracker;
@@ -49,31 +51,19 @@ async function initMap() {
       const gistId = params.get('ugo');
       const workerBase = window.UGO_WORKER_URL || 'https://usergeneratedorbitbot.navarenko.workers.dev';
 
-      // Fetch IP location and gist position concurrently
-      const [ipRes, gistRes] = await Promise.allSettled([
-        fetch('https://ipapi.co/json/').then(r => r.json()),
-        gistId.startsWith('ugo-')
-          ? fetch(`${workerBase}/gist-by-ugo?id=${encodeURIComponent(gistId)}`).then(r => r.text()).then(importKML)
-          : fetch(`https://api.github.com/gists/${gistId}`).then(r => r.json())
-              .then(d => fetch(Object.values(d.files)[0].raw_url)).then(r => r.text()).then(importKML),
-      ]);
-
-      const ip  = ipRes.status  === 'fulfilled' ? ipRes.value  : null;
-      const rec = gistRes.status === 'fulfilled' ? gistRes.value : null;
-
-      const userLat = ip?.latitude  ?? 0;
-      const userLng = ip?.longitude ?? 0;
-
-      let rangeM = 8000000; // default ~8000km
-      if (rec) {
-        const bb     = rec.metadata.boundingBox;
-        const ugoLat = (bb.north + bb.south) / 2;
-        const ugoLng = (bb.east  + bb.west)  / 2;
-        const distKm = _haversineKm(userLat, userLng, ugoLat, ugoLng);
-        rangeM = Math.max(800000, Math.min(20000000, distKm * 4000));
-      }
-
-      startCamera = { center: { lat: userLat, lng: userLng, altitude: 0 }, range: rangeM, tilt: 0, heading: 0 };
+      // Fetch the UGO to get its location, then open from a globe-level view above it.
+      // Store the parsed recording so _loadFromGist can reuse it without a second fetch.
+      const kmlText = await (gistId.startsWith('ugo-')
+        ? fetch(`${workerBase}/gist-by-ugo?id=${encodeURIComponent(gistId)}`).then(r => r.text())
+        : fetch(`https://api.github.com/gists/${gistId}`).then(r => r.json())
+            .then(d => fetch(Object.values(d.files)[0].raw_url)).then(r => r.text()));
+      _preloadedRecording = importKML(kmlText);
+      const rec = _preloadedRecording;
+      const bb  = rec.metadata.boundingBox;
+      const ugoLat = (bb.north + bb.south) / 2;
+      const ugoLng = (bb.east  + bb.west)  / 2;
+      // Start from ~22,000 km above the UGO — Earth visible as a globe, then fly in
+      startCamera = { center: { lat: ugoLat, lng: ugoLng, altitude: 0 }, range: 22000000, tilt: 0, heading: 0 };
     } catch (e) {}
   }
 
@@ -156,8 +146,8 @@ async function initMap() {
     if (returning && saved) _restoreSession(saved);
   }
 
-  // Tour mode — load all UGOs and fly between them
-  if (params.has('tour')) _startTour();
+  // Tour mode — disabled for now
+  // if (params.has('tour')) _startTour();
 }
 
 // R       — reset tilt + heading (Google Earth style)
@@ -169,7 +159,7 @@ function _onKeyDown(e) {
 
   if (e.key === 'Tab') {
     e.preventDefault();
-    const els = ['transport', 'search-bar', 'camera-hud'].map(id => document.getElementById(id));
+    const els = ['transport', 'search-bar', 'site-nav'].map(id => document.getElementById(id));
     const hide = !els[0].classList.contains('ui-hidden');
     els.forEach(el => el.classList.toggle('ui-hidden', hide));
     return;
@@ -590,36 +580,42 @@ async function _startTour() {
 }
 
 async function _loadFromGist(gistId) {
+  _sharedUgoId = new URLSearchParams(location.search).has('ugo') ? gistId : null;
   _stopPlayback();
-  _setText('stat-status', 'Loading UGO…');
-  const workerBase = window.UGO_WORKER_URL || 'https://usergeneratedorbitbot.navarenko.workers.dev';
-  let kmlText;
-  try {
-    if (gistId.startsWith('ugo-')) {
-      // UGO ID — search by filename via Worker
-      const res = await fetch(`${workerBase}/gist-by-ugo?id=${encodeURIComponent(gistId)}`);
-      if (!res.ok) throw new Error(`UGO not found (${res.status})`);
-      kmlText = await res.text();
-    } else {
-      // Gist ID — fetch directly from GitHub API
-      const res  = await fetch(`https://api.github.com/gists/${gistId}`);
-      if (!res.ok) throw new Error(`Gist not found (${res.status})`);
-      const data = await res.json();
-      const file = Object.values(data.files)[0];
-      const raw  = await fetch(file.raw_url);
-      kmlText    = await raw.text();
-    }
-  } catch (err) {
-    _setText('stat-status', 'Could not load UGO');
-    return;
-  }
 
   let recording;
-  try {
-    recording = importKML(kmlText);
-  } catch (err) {
-    _setText('stat-status', err.message);
-    return;
+
+  // Reuse the recording pre-fetched during initMap if available, skipping a second network call
+  if (_preloadedRecording) {
+    recording = _preloadedRecording;
+    _preloadedRecording = null;
+  } else {
+    _setText('stat-status', 'Loading UGO…');
+    const workerBase = window.UGO_WORKER_URL || 'https://usergeneratedorbitbot.navarenko.workers.dev';
+    let kmlText;
+    try {
+      if (gistId.startsWith('ugo-')) {
+        const res = await fetch(`${workerBase}/gist-by-ugo?id=${encodeURIComponent(gistId)}`);
+        if (!res.ok) throw new Error(`UGO not found (${res.status})`);
+        kmlText = await res.text();
+      } else {
+        const res  = await fetch(`https://api.github.com/gists/${gistId}`);
+        if (!res.ok) throw new Error(`Gist not found (${res.status})`);
+        const data = await res.json();
+        const file = Object.values(data.files)[0];
+        const raw  = await fetch(file.raw_url);
+        kmlText    = await raw.text();
+      }
+    } catch (err) {
+      _showLoadError();
+      return;
+    }
+    try {
+      recording = importKML(kmlText);
+    } catch (err) {
+      _showLoadError();
+      return;
+    }
   }
 
   visualizer.clear();
@@ -644,9 +640,44 @@ async function _loadFromGist(gistId) {
 
   _enterState('visualised');
 
-  // Fly to PCA-based overview
+  // On a shared UGO URL, disable record and load — recording over someone's
+  // UGO would be confusing, and loading would silently replace it.
+  if (new URLSearchParams(location.search).has('ugo')) {
+    document.getElementById('btn-record').disabled = true;
+    document.getElementById('btn-load').disabled   = true;
+    document.getElementById('dev-hud').classList.remove('hidden');
+    document.getElementById('camera-hud').classList.remove('hidden');
+  }
+
+  // Fly to PCA-based overview — ease-out cubic, cancels immediately on user interaction.
   const cam = _overviewCamera(recording);
-  if (cam) map.flyCameraTo({ endCamera: cam, durationMillis: 4500 });
+  if (cam) {
+    const DURATION = 7500;
+    const start = {
+      lat:     map.center?.lat      ?? cam.center.lat,
+      lng:     map.center?.lng      ?? cam.center.lng,
+      alt:     map.center?.altitude ?? 0,
+      range:   map.range   ?? cam.range,
+      tilt:    map.tilt    ?? cam.tilt,
+      heading: map.heading ?? cam.heading,
+    };
+    const startTime = performance.now();
+    let flyRaf = null;
+    function easeOut(t) { return 1 - Math.pow(1 - t, 3); }
+    function cancelFly() { if (flyRaf) { cancelAnimationFrame(flyRaf); flyRaf = null; } }
+    function flyTick() {
+      const t = Math.min((performance.now() - startTime) / DURATION, 1);
+      const e = easeOut(t);
+      const dh = ((cam.heading - start.heading) % 360 + 540) % 360 - 180;
+      map.center  = { lat: start.lat + (cam.center.lat - start.lat) * e, lng: start.lng + (cam.center.lng - start.lng) * e, altitude: start.alt + (cam.center.altitude - start.alt) * e };
+      map.range   = start.range   + (cam.range   - start.range)   * e;
+      map.tilt    = start.tilt    + (cam.tilt    - start.tilt)    * e;
+      map.heading = start.heading + dh * e;
+      if (t < 1) flyRaf = requestAnimationFrame(flyTick);
+    }
+    map.addEventListener('pointerdown', cancelFly, { once: true });
+    flyRaf = requestAnimationFrame(flyTick);
+  }
 }
 
 async function _restoreSession(kml) {
@@ -691,6 +722,10 @@ function _clearRecording() {
   _metrics.elevationError     = '';
   _updateDevHud();
   _enterState('ready');
+  if (_sharedUgoId) {
+    document.getElementById('btn-record').disabled = true;
+    document.getElementById('btn-load').disabled   = true;
+  }
 }
 
 function _toggleISS() {
@@ -768,6 +803,20 @@ function _resetCamera() {
   if (_appState === 'recording' || _appState === 'paused') {
     recorder.stop();
   }
+
+  // When viewing a shared UGO (?ugo= URL), reset restores the UGO.
+  // If the path is still loaded, just fly back to the overview.
+  // If it was cleared, re-fetch and re-render it.
+  if (_sharedUgoId) {
+    if (currentRecording) {
+      const cam = _overviewCamera(currentRecording);
+      if (cam) map.flyCameraTo({ endCamera: cam, durationMillis: 2000 });
+    } else {
+      _loadFromGist(_sharedUgoId);
+    }
+    return;
+  }
+
   visualizer.clear();
   currentRecording = null;
   document.getElementById('btn-fill').classList.remove('active');
@@ -906,6 +955,17 @@ async function _onSearch(e) {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
+function _showLoadError() {
+  const el = document.createElement('div');
+  el.id = 'load-error';
+  el.innerHTML = `
+    <div>UGO not found</div>
+    <div>This link may be broken or the recording no longer exists.</div>
+    <a href="/gallery">← back to gallery</a>
+  `;
+  document.body.appendChild(el);
+}
+
 function _toggleFill() {
   const btn     = document.getElementById('btn-fill');
   const isOn    = btn.classList.toggle('active');
@@ -947,6 +1007,17 @@ function _updateDevHud() {
   document.getElementById('dev-elev-locations').textContent = _metrics.elevationLocations;
   const errEl = document.getElementById('dev-elev-error');
   errEl.textContent = _metrics.elevationError || '';
+
+  const infoEl = document.getElementById('dev-ugo-info');
+  if (_sharedUgoId && currentRecording) {
+    const d = new Date(currentRecording.createdAt);
+    document.getElementById('dev-ugo-name').textContent = currentRecording.name;
+    document.getElementById('dev-ugo-date').textContent = d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'UTC' });
+    document.getElementById('dev-ugo-time').textContent = d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' }) + ' UTC';
+    infoEl.style.display = '';
+  } else {
+    infoEl.style.display = 'none';
+  }
 }
 
 function _haversineKm(lat1, lng1, lat2, lng2) {

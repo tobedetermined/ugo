@@ -61,7 +61,7 @@
     }
 
     .nav a {
-      color: rgba(0,0,0,0.3);
+      color: rgba(0,0,0,0.7);
       text-decoration: none;
       transition: color 0.15s;
     }
@@ -378,21 +378,36 @@
       a.target             = '_blank';
       a.dataset.motionType = card.metadata.motionType || 'manual';
 
-      // SVG sketch — use localStorage cache to skip recomputation on repeat visits
-      const svgCacheKey = `ugo-svg-v4-${card.id}`;
-      const cachedSvg   = localStorage.getItem(svgCacheKey);
-      let svg;
-      if (cachedSvg) {
+      // Globe SVG thumbnail
+      const globeCacheKey = `ugo-globe-v1-${card.id}`;
+      const cachedGlobe   = localStorage.getItem(globeCacheKey);
+      let globeSvg;
+      if (cachedGlobe) {
         const tmp = document.createElement('div');
-        tmp.innerHTML = cachedSvg;
-        svg = tmp.firstChild;
-        svg._pulseAnim = svg.querySelector('animate');
+        tmp.innerHTML = cachedGlobe;
+        globeSvg = tmp.firstChild;
       } else {
-        svg = buildSVG(card);
-        try { localStorage.setItem(svgCacheKey, svg.outerHTML); } catch (e) { /* storage full */ }
+        globeSvg = buildGlobeSVG(card);
+        try { localStorage.setItem(globeCacheKey, globeSvg.outerHTML); } catch (e) { /* storage full */ }
       }
-      a.appendChild(svg);
-      a.addEventListener('mouseenter', () => svg._pulseAnim?.beginElement());
+      a.appendChild(globeSvg);
+
+      // /* OLD SVG sketch — use localStorage cache to skip recomputation on repeat visits
+      // const svgCacheKey = `ugo-svg-v4-${card.id}`;
+      // const cachedSvg   = localStorage.getItem(svgCacheKey);
+      // let svg;
+      // if (cachedSvg) {
+      //   const tmp = document.createElement('div');
+      //   tmp.innerHTML = cachedSvg;
+      //   svg = tmp.firstChild;
+      //   svg._pulseAnim = svg.querySelector('animate');
+      // } else {
+      //   svg = buildSVG(card);
+      //   try { localStorage.setItem(svgCacheKey, svg.outerHTML); } catch (e) { /* storage full */ }
+      // }
+      // a.appendChild(svg);
+      // a.addEventListener('mouseenter', () => svg._pulseAnim?.beginElement());
+      // */
 
       // Hide/show button
       const hideBtn = document.createElement('button');
@@ -435,6 +450,120 @@
       return a;
     }
 
+    function buildGlobeSVG(card) {
+      const W = 260, H = 160;
+      const R = 72;
+      const cx = W / 2, cy = H / 2;
+      const ns = 'http://www.w3.org/2000/svg';
+
+      const svg = document.createElementNS(ns, 'svg');
+      svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+      svg.setAttribute('class', 'card-sketch');
+      svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
+
+      const defs = document.createElementNS(ns, 'defs');
+
+      const clipId = `ec-${Math.random().toString(36).slice(2)}`;
+      const clipPath = document.createElementNS(ns, 'clipPath');
+      clipPath.setAttribute('id', clipId);
+      const clipCircle = document.createElementNS(ns, 'circle');
+      clipCircle.setAttribute('cx', cx); clipCircle.setAttribute('cy', cy); clipCircle.setAttribute('r', R);
+      clipPath.appendChild(clipCircle);
+      defs.appendChild(clipPath);
+
+      const gradId = `eg-${Math.random().toString(36).slice(2)}`;
+      const grad = document.createElementNS(ns, 'radialGradient');
+      grad.setAttribute('id', gradId);
+      grad.setAttribute('cx', '38%'); grad.setAttribute('cy', '32%'); grad.setAttribute('r', '65%');
+      [['0%', '#1a4a6e'], ['100%', '#060f1a']].forEach(([off, col]) => {
+        const s = document.createElementNS(ns, 'stop');
+        s.setAttribute('offset', off); s.setAttribute('stop-color', col);
+        grad.appendChild(s);
+      });
+      defs.appendChild(grad);
+      svg.appendChild(defs);
+
+      // Space background
+      const bg = document.createElementNS(ns, 'rect');
+      bg.setAttribute('width', W); bg.setAttribute('height', H); bg.setAttribute('fill', '#050a10');
+      svg.appendChild(bg);
+
+      // Earth
+      const earth = document.createElementNS(ns, 'circle');
+      earth.setAttribute('cx', cx); earth.setAttribute('cy', cy); earth.setAttribute('r', R);
+      earth.setAttribute('fill', `url(#${gradId})`);
+      svg.appendChild(earth);
+
+      // Orthographic projection centred on UGO bounding box
+      const allPts  = card.path.flat();
+      const lats    = allPts.map(p => p.lat);
+      const lngs    = allPts.map(p => p.lng);
+      const lat0    = ((Math.min(...lats) + Math.max(...lats)) / 2) * Math.PI / 180;
+      const lng0    = ((Math.min(...lngs) + Math.max(...lngs)) / 2) * Math.PI / 180;
+
+      function project(lat, lng) {
+        const φ = lat * Math.PI / 180, λ = lng * Math.PI / 180;
+        const x = Math.cos(φ) * Math.sin(λ - lng0);
+        const y = Math.cos(lat0) * Math.sin(φ) - Math.sin(lat0) * Math.cos(φ) * Math.cos(λ - lng0);
+        const z = Math.sin(lat0) * Math.sin(φ) + Math.cos(lat0) * Math.cos(φ) * Math.cos(λ - lng0);
+        return { x: cx + x * R, y: cy - y * R, visible: z >= 0 };
+      }
+
+      // Graticule
+      const grat = document.createElementNS(ns, 'g');
+      grat.setAttribute('clip-path', `url(#${clipId})`);
+      grat.setAttribute('stroke', 'rgba(100,160,210,0.13)');
+      grat.setAttribute('stroke-width', '0.5');
+      grat.setAttribute('fill', 'none');
+      for (let lat = -60; lat <= 60; lat += 30) {
+        const pts = [];
+        for (let lng = -180; lng <= 180; lng += 3) {
+          const p = project(lat, lng);
+          if (p.visible) pts.push(`${p.x.toFixed(1)},${p.y.toFixed(1)}`);
+        }
+        if (pts.length > 1) { const pl = document.createElementNS(ns, 'polyline'); pl.setAttribute('points', pts.join(' ')); grat.appendChild(pl); }
+      }
+      for (let lng = -180; lng < 180; lng += 30) {
+        const pts = [];
+        for (let lat = -90; lat <= 90; lat += 3) {
+          const p = project(lat, lng);
+          if (p.visible) pts.push(`${p.x.toFixed(1)},${p.y.toFixed(1)}`);
+        }
+        if (pts.length > 1) { const pl = document.createElementNS(ns, 'polyline'); pl.setAttribute('points', pts.join(' ')); grat.appendChild(pl); }
+      }
+      svg.appendChild(grat);
+
+      // UGO path
+      const pathGroup = document.createElementNS(ns, 'g');
+      pathGroup.setAttribute('clip-path', `url(#${clipId})`);
+      for (const seg of card.path) {
+        if (seg.length < 2) continue;
+        let pts = [];
+        for (const pt of seg) {
+          const p = project(pt.lat, pt.lng);
+          if (p.visible) {
+            pts.push(`${p.x.toFixed(1)},${p.y.toFixed(1)}`);
+          } else {
+            if (pts.length > 1) { const pl = document.createElementNS(ns, 'polyline'); pl.setAttribute('points', pts.join(' ')); pl.setAttribute('fill', 'none'); pl.setAttribute('stroke', '#ff2020'); pl.setAttribute('stroke-width', '2'); pl.setAttribute('stroke-linecap', 'round'); pl.setAttribute('stroke-linejoin', 'round'); pathGroup.appendChild(pl); }
+            pts = [];
+          }
+        }
+        if (pts.length > 1) { const pl = document.createElementNS(ns, 'polyline'); pl.setAttribute('points', pts.join(' ')); pl.setAttribute('fill', 'none'); pl.setAttribute('stroke', '#ff2020'); pl.setAttribute('stroke-width', '2'); pl.setAttribute('stroke-linecap', 'round'); pl.setAttribute('stroke-linejoin', 'round'); pathGroup.appendChild(pl); }
+      }
+      svg.appendChild(pathGroup);
+
+      // Atmosphere ring
+      const atm = document.createElementNS(ns, 'circle');
+      atm.setAttribute('cx', cx); atm.setAttribute('cy', cy); atm.setAttribute('r', R);
+      atm.setAttribute('fill', 'none');
+      atm.setAttribute('stroke', 'rgba(100,170,230,0.35)');
+      atm.setAttribute('stroke-width', '2');
+      svg.appendChild(atm);
+
+      return svg;
+    }
+
+    /* OLD — heartbeat/EKG sketch thumbnails
     // card.path is an array of segments, each segment is [{lat, lng}, ...]
     function buildSVG(card) {
       const W = 260, H = 160;
@@ -597,6 +726,8 @@
 
       return svg;
     }
+
+    */ // end OLD buildSVG
 
     function niceStep(range) {
       const target = 3; // aim for ~3 grid lines

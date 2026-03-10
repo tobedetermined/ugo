@@ -231,9 +231,23 @@ html, body {
 #dev-title {
   font-size: 9px;
   letter-spacing: 2px;
-  color: rgba(255, 255, 0, 0.35);
+  color: rgba(255, 255, 0, 0.55);
   margin-bottom: 10px;
   text-transform: uppercase;
+}
+
+#dev-ugo-name {
+  font-size: 11px;
+  font-weight: bold;
+  color: rgba(255, 255, 0, 0.9);
+  letter-spacing: 0.5px;
+  margin-bottom: 6px;
+}
+
+#dev-ugo-sep {
+  height: 1px;
+  background: rgba(255, 255, 0, 0.15);
+  margin: 6px 0 8px;
 }
 
 .dev-row {
@@ -244,7 +258,7 @@ html, body {
 }
 
 .dev-label {
-  color: rgba(255, 255, 0, 0.4);
+  color: rgba(255, 255, 0, 0.65);
 }
 
 #dev-elev-error {
@@ -345,7 +359,21 @@ html, body {
   transition: color 0.15s;
 }
 
+.page-map #site-nav a {
+  color: rgba(255,255,255,0.85);
+  text-shadow: 0 1px 5px rgba(0,0,0,0.8);
+}
+
 #site-nav a:hover { color: #ff2020; }
+
+#transport-hint {
+  text-align: center;
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 9px;
+  letter-spacing: 1px;
+  color: #fff;
+  padding: 2px 0 6px;
+}
 
 .transport-about {
   display: block;
@@ -363,6 +391,15 @@ html, body {
   color: #ff2020;
 }
 
+#c-hint {
+  grid-column: 1 / -1;
+  text-align: center;
+  font-size: 11px;
+  letter-spacing: 1px;
+  color: rgba(255, 255, 255, 0.85);
+  margin-top: 6px;
+}
+
 .c-label {
   color: rgba(255, 255, 255, 0.85);
   text-transform: uppercase;
@@ -370,6 +407,43 @@ html, body {
   letter-spacing: 0.5px;
   text-align: right;
 }
+
+#load-error {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  z-index: 1000;
+  background: rgba(0, 0, 0, 0.72);
+  font-family: 'Courier New', Courier, monospace;
+  text-align: center;
+  padding: 24px;
+}
+
+#load-error div:first-child {
+  font-size: 18px;
+  letter-spacing: 2px;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+#load-error div:last-of-type {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.45);
+  max-width: 320px;
+}
+
+#load-error a {
+  font-size: 11px;
+  letter-spacing: 1px;
+  color: #ff2020;
+  text-decoration: none;
+  margin-top: 8px;
+}
+
+#load-error a:hover { text-decoration: underline; }
 
 @media (max-width: 600px) {
   #search-bar {

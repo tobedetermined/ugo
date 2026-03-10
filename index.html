@@ -7,7 +7,7 @@
   <link rel="icon" type="image/svg+xml" href="favicon.svg">
   <link rel="stylesheet" href="css/style.css">
 </head>
-<body>
+<body class="page-map">
 
   <div id="map-container"></div>
 
@@ -47,6 +47,7 @@
       -->
       <input id="file-input" type="file" accept=".kml" style="display:none">
     </div>
+    <div id="transport-hint">TAB to hide</div>
   </div>
 
   <!-- Search bar -->
@@ -63,11 +64,18 @@
     <div class="c-row"><span class="c-label">range</span><span id="c-range">—</span></div>
     <div class="c-row"><span class="c-label">tilt</span><span id="c-tilt">—</span></div>
     <div class="c-row"><span class="c-label">Heading</span><span id="c-hdg">—</span></div>
+    <div id="c-hint">press ` to hide</div>
   </div>
 
   <!-- UGO metrics panel — toggle with backtick -->
   <div id="dev-hud" class="hidden">
     <div id="dev-title">UGO METRICS</div>
+    <div id="dev-ugo-info" style="display:none">
+      <div id="dev-ugo-name"></div>
+      <div class="dev-row"><span class="dev-label">date</span><span id="dev-ugo-date">—</span></div>
+      <div class="dev-row"><span class="dev-label">time</span><span id="dev-ugo-time">—</span></div>
+      <div id="dev-ugo-sep"></div>
+    </div>
     <div class="dev-row"><span class="dev-label">duration</span><span id="dev-duration">—</span></div>
     <div class="dev-row"><span class="dev-label">distance</span><span id="dev-distance">—</span></div>
     <div class="dev-row"><span class="dev-label">max altitude</span><span id="dev-max-altitude">—</span></div>
