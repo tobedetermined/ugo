@@ -37,6 +37,7 @@ let _durationTimer = null;
 let issTracker;
 let tiangongTracker;
 let _satTimer = null;
+let scheduleNavHide = () => {}; // set by _initNavAutohide, used by Tab handler
 
 const _metrics = {
   elevationRequests:  0,
@@ -155,7 +156,8 @@ async function initMap() {
 
   // Load a UGO from a UGO ID passed as ?ugo=ID in the URL
   const gistId = params.get('ugo');
-  const hideNav = _initNavAutohide();
+  const { hideNav, scheduleHide: _scheduleNavHide } = _initNavAutohide();
+  scheduleNavHide = _scheduleNavHide;
   if (gistId) {
     _loadFromGist(gistId);
     setTimeout(hideNav, 8000);
@@ -202,6 +204,7 @@ function _onKeyDown(e) {
     const hide = !els[0].classList.contains('ui-hidden');
     els.forEach(el => el.classList.toggle('ui-hidden', hide));
     document.getElementById('site-nav').classList.toggle('nav-autohidden', hide);
+    if (!hide) scheduleNavHide(3500);
     return;
   }
 
@@ -278,9 +281,9 @@ function _initNavAutohide() {
     nav.classList.remove('nav-autohidden');
   }
 
-  function scheduleHide() {
+  function scheduleHide(delay = 3000) {
     clearTimeout(hideTimer);
-    hideTimer = setTimeout(hideNav, 3000);
+    hideTimer = setTimeout(hideNav, delay);
   }
 
   // Hover to show/hide — active immediately but showNav is a no-op until initial hide
@@ -289,7 +292,7 @@ function _initNavAutohide() {
     el.addEventListener('mouseleave', scheduleHide);
   });
 
-  return hideNav;
+  return { hideNav, scheduleHide };
 }
 
 // ── Drag to reposition panel ──────────────────────────────────────────────────
