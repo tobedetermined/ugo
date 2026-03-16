@@ -37,7 +37,7 @@ const LETTERS = {
 };
 
 class WelcomeMessage {
-  constructor(map3d, targetCamera) { this.map = map3d; this._target = targetCamera; this._overlays = []; this._timers = []; }
+  constructor(map3d, targetCamera, { onDismiss } = {}) { this.map = map3d; this._target = targetCamera; this._overlays = []; this._timers = []; this._onDismiss = onDismiss; }
 
   async show() {
     const { Polyline3DElement, Polygon3DElement, AltitudeMode } = await google.maps.importLibrary('maps3d');
@@ -130,6 +130,7 @@ class WelcomeMessage {
     if (this._dismissed) return;
     this._dismissed = true;
     this._timers.forEach(t => clearTimeout(t));
+    this._onDismiss?.();
     this._fadeOut();
   }
 

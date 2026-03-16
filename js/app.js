@@ -155,18 +155,21 @@ async function initMap() {
 
   // Load a UGO from a UGO ID passed as ?ugo=ID in the URL
   const gistId = params.get('ugo');
+  const hideNav = _initNavAutohide();
   if (gistId) {
     _loadFromGist(gistId);
+    setTimeout(hideNav, 8000);
   } else {
     // Restore last session recording only when returning from another page (not on hard reload)
     sessionStorage.removeItem('ugo-returning');
     const saved = localStorage.getItem('ugo-session');
     if (returning && saved) _restoreSession(saved);
-    if (!returning) new WelcomeMessage(map, INITIAL_CAMERA).show();
+    if (!returning) {
+      new WelcomeMessage(map, INITIAL_CAMERA, { onDismiss: hideNav }).show();
+    } else {
+      setTimeout(hideNav, 8000);
+    }
   }
-
-  // Auto-hide nav after 3s; restore on hover over the top zone
-  _initNavAutohide();
 
   // Tour mode — disabled for now
   // if (params.has('tour')) _startTour();
@@ -280,14 +283,13 @@ function _initNavAutohide() {
     hideTimer = setTimeout(hideNav, 3000);
   }
 
-  // Hide after 8s on load — hover won't interfere during this window
-  setTimeout(hideNav, 8000);
-
   // Hover to show/hide — active immediately but showNav is a no-op until initial hide
   [zone, nav].forEach(el => {
     el.addEventListener('mouseenter', showNav);
     el.addEventListener('mouseleave', scheduleHide);
   });
+
+  return hideNav;
 }
 
 // ── Drag to reposition panel ──────────────────────────────────────────────────
