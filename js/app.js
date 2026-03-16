@@ -195,7 +195,7 @@ function _onKeyDown(e) {
 
   if (e.key === 'Tab') {
     e.preventDefault();
-    const els = ['transport', 'search-bar', 'site-nav'].map(id => document.getElementById(id));
+    const els = ['transport', 'search-bar'].map(id => document.getElementById(id));
     const hide = !els[0].classList.contains('ui-hidden');
     els.forEach(el => el.classList.toggle('ui-hidden', hide));
     return;
