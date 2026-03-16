@@ -39,6 +39,8 @@ let tiangongTracker;
 let _satTimer = null;
 let scheduleNavHide = () => {}; // set by _initNavAutohide, used by Tab handler
 
+const isTouch = window.matchMedia('(pointer: coarse)').matches;
+
 const _metrics = {
   elevationRequests:  0,
   elevationLocations: 0,
@@ -136,6 +138,24 @@ async function initMap() {
   document.addEventListener('keydown', _onKeyDown, true);
 
   _initDrag();
+
+  // Touch devices: tap the map to toggle UI visibility
+  if (isTouch) {
+    let _tapStart = null;
+    document.addEventListener('touchstart', (e) => {
+      const inUI = ['transport', 'search-bar', 'site-nav', 'nav-hover-zone', 'controls-overlay']
+        .some(id => { const el = document.getElementById(id); return el && el.contains(e.target); });
+      _tapStart = inUI ? null : { x: e.touches[0].clientX, y: e.touches[0].clientY, t: Date.now() };
+    }, { passive: true });
+    document.addEventListener('touchend', (e) => {
+      if (!_tapStart) return;
+      const dx = Math.abs(e.changedTouches[0].clientX - _tapStart.x);
+      const dy = Math.abs(e.changedTouches[0].clientY - _tapStart.y);
+      const dt = Date.now() - _tapStart.t;
+      _tapStart = null;
+      if (dx < 10 && dy < 10 && dt < 300) _toggleMobileUI();
+    }, { passive: true });
+  }
 
   // Mark nav links so we know the user navigated away (not a hard reload)
   // Also snapshot the current camera so we can restore it on return
@@ -260,6 +280,22 @@ function _onKeyDown(e) {
   //     durationMillis: 100,
   //   });
   // }
+}
+
+// ── Mobile UI toggle (touch devices) ─────────────────────────────────────────
+
+function _toggleMobileUI() {
+  const transport = document.getElementById('transport');
+  const hide = !transport.classList.contains('ui-hidden');
+  transport.classList.toggle('ui-hidden', hide);
+  document.getElementById('search-bar').classList.toggle('ui-hidden', hide);
+  document.getElementById('site-nav').classList.toggle('nav-autohidden', hide);
+}
+
+function _hideMobileUI() {
+  document.getElementById('transport').classList.add('ui-hidden');
+  document.getElementById('search-bar').classList.add('ui-hidden');
+  document.getElementById('site-nav').classList.add('nav-autohidden');
 }
 
 // ── Nav auto-hide ─────────────────────────────────────────────────────────────
@@ -938,6 +974,7 @@ function _enterState(state) {
       recBtn.classList.add('recording');
       _setButtons({ record: true, stop: true, clear: false, fill: false, save: false, load: false, play: false });
       document.getElementById('stat-status').innerHTML = '<span class="dot-blink">●</span> Recording…';
+      if (isTouch) setTimeout(_hideMobileUI, 800);
       break;
     case 'paused':
       recBtn.textContent = '● REC';
