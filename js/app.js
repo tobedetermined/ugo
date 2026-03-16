@@ -757,8 +757,10 @@ async function _loadFromGist(gistId) {
   if (new URLSearchParams(location.search).has('ugo')) {
     document.getElementById('btn-record').disabled = true;
     document.getElementById('btn-load').disabled   = true;
-    document.getElementById('dev-hud').classList.remove('hidden');
-    document.getElementById('camera-hud').classList.remove('hidden');
+    if (!isTouch) {
+      document.getElementById('dev-hud').classList.remove('hidden');
+      document.getElementById('camera-hud').classList.remove('hidden');
+    }
   }
 
   // Fly to PCA-based overview — ease-out cubic, cancels immediately on user interaction.
