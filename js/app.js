@@ -268,8 +268,13 @@ function _initNavAutohide() {
   let initialHideDone = false;
 
   function hideNav() {
+    if (!initialHideDone) {
+      // Match the welcome message 2s fade-out on the first hide
+      nav.style.transitionDuration = '2s';
+      setTimeout(() => { nav.style.transitionDuration = ''; }, 2200);
+      initialHideDone = true;
+    }
     nav.classList.add('nav-autohidden');
-    initialHideDone = true;
   }
 
   function showNav() {
