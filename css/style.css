@@ -594,3 +594,11 @@ html, body {
     top: 52px;
   }
 }
+
+.hint-touch { display: none; }
+
+@media (pointer: coarse) {
+  .hint-kb           { display: none; }
+  .hint-touch        { display: inline; }
+  #btn-controls-help { display: none; }
+}
