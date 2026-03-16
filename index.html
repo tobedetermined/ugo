@@ -7,12 +7,13 @@
   <link rel="icon" type="image/svg+xml" href="favicon.svg">
   <link rel="stylesheet" href="css/style.css">
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
 </head>
 <body class="page-map">
 
   <div id="map-container"></div>
 
+  <div id="nav-hover-zone"></div>
   <nav id="site-nav">
     <a href="/" class="logo">UGO</a>
     <a href="/about">about</a>
@@ -49,7 +50,33 @@
       -->
       <input id="file-input" type="file" accept=".kml" style="display:none">
     </div>
+    <button id="btn-controls-help" class="transport-controls-link">? controls</button>
     <div id="transport-hint">TAB to hide</div>
+  </div>
+
+  <!-- Controls help overlay -->
+  <div id="controls-overlay" class="hidden">
+    <div id="controls-modal">
+      <div id="controls-modal-header">
+        <span>Controls</span>
+        <button id="btn-controls-close">✕</button>
+      </div>
+      <div id="controls-modal-body">
+        <div class="cm-row"><span class="cm-action">move:</span><span class="cm-kb">← ↑ → ↓</span><span class="cm-mouse">click + drag</span></div>
+        <div class="cm-row"><span class="cm-action">tilt:</span><span class="cm-kb">Shift ↑ ↓</span><span class="cm-mouse">click + drag + <em>shift</em></span></div>
+        <div class="cm-row"><span class="cm-action">rotate:</span><span class="cm-kb">Shift ← →</span><span class="cm-mouse cm-faint">click + drag + <em>shift</em></span></div>
+        <div class="cm-row"><span class="cm-action">fpv:</span><span class="cm-kb"></span><span class="cm-mouse">click + drag + <em>ctrl</em></span></div>
+        <div class="cm-row cm-spacer"><span></span><span></span><span></span></div>
+        <div class="cm-row"><span class="cm-action">zoom:</span><span class="cm-kb">+ / −</span><span class="cm-mouse">2-finger drag</span></div>
+        <div class="cm-row"><span class="cm-action">up / down:</span><span class="cm-kb"></span><span class="cm-mouse">2-finger drag + <em>shift</em></span></div>
+        <div class="cm-row cm-spacer"><span></span><span></span><span></span></div>
+        <div class="cm-row"><span class="cm-action">center Earth:</span><span class="cm-kb">r</span><span class="cm-mouse"></span></div>
+        <div class="cm-row cm-spacer"><span></span><span></span><span></span></div>
+        <div class="cm-row"><span class="cm-action">show / hide UI:</span><span class="cm-kb">tab</span><span class="cm-mouse"></span></div>
+        <div class="cm-row"><span class="cm-action">full screen on / off:</span><span class="cm-kb">f</span><span class="cm-mouse"></span></div>
+        <div class="cm-row"><span class="cm-action">metrics:</span><span class="cm-kb">'</span><span class="cm-mouse"></span></div>
+      </div>
+    </div>
   </div>
 
   <!-- Search bar -->

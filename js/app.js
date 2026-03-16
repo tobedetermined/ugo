@@ -117,9 +117,18 @@ async function initMap() {
   // Prevent buttons from stealing keyboard focus from the map —
   // mousedown is where focus transfer happens, preventDefault stops it
   // while still allowing the click event to fire normally
-  document.querySelectorAll('#hud-controls button').forEach(btn => {
+  document.querySelectorAll('#hud-controls button, #btn-controls-help').forEach(btn => {
     btn.addEventListener('mousedown', e => e.preventDefault());
+  });
+  document.querySelectorAll('#hud-controls button').forEach(btn => {
     btn.addEventListener('click', () => map.focus());
+  });
+
+  // Controls help overlay
+  document.getElementById('btn-controls-help').addEventListener('click', _showControlsHelp);
+  document.getElementById('btn-controls-close').addEventListener('click', _hideControlsHelp);
+  document.getElementById('controls-overlay').addEventListener('click', e => {
+    if (e.target === document.getElementById('controls-overlay')) _hideControlsHelp();
   });
 
   // Keyboard shortcuts — capture phase so we intercept before the map handles them
@@ -156,6 +165,9 @@ async function initMap() {
     if (!returning) new WelcomeMessage(map, INITIAL_CAMERA).show();
   }
 
+  // Auto-hide nav after 3s; restore on hover over the top zone
+  _initNavAutohide();
+
   // Tour mode — disabled for now
   // if (params.has('tour')) _startTour();
 }
@@ -163,7 +175,21 @@ async function initMap() {
 // R       — reset tilt + heading (Google Earth style)
 // F       — toggle fullscreen
 // `       — toggle dev metrics panel
+function _showControlsHelp() {
+  document.getElementById('controls-overlay').classList.remove('hidden');
+}
+
+function _hideControlsHelp() {
+  document.getElementById('controls-overlay').classList.add('hidden');
+  map.focus();
+}
+
 function _onKeyDown(e) {
+  if (e.key === 'Escape') {
+    const overlay = document.getElementById('controls-overlay');
+    if (!overlay.classList.contains('hidden')) { _hideControlsHelp(); return; }
+  }
+
   if (e.target.tagName === 'INPUT') return;
   if (document.activeElement !== map) map.focus();
 
@@ -227,6 +253,37 @@ function _onKeyDown(e) {
   //     durationMillis: 100,
   //   });
   // }
+}
+
+// ── Nav auto-hide ─────────────────────────────────────────────────────────────
+
+function _initNavAutohide() {
+  const nav  = document.getElementById('site-nav');
+  const zone = document.getElementById('nav-hover-zone');
+  let hideTimer = null;
+
+  function hideNav() {
+    nav.classList.add('nav-autohidden');
+  }
+
+  function showNav() {
+    clearTimeout(hideTimer);
+    nav.classList.remove('nav-autohidden');
+  }
+
+  function scheduleHide(delay = 1000) {
+    clearTimeout(hideTimer);
+    hideTimer = setTimeout(hideNav, delay);
+  }
+
+  // Hide after 5s on load
+  hideTimer = setTimeout(hideNav, 5000);
+
+  // Show when hovering the zone or nav, hide when leaving
+  [zone, nav].forEach(el => {
+    el.addEventListener('mouseenter', showNav);
+    el.addEventListener('mouseleave', () => scheduleHide(1000));
+  });
 }
 
 // ── Drag to reposition panel ──────────────────────────────────────────────────

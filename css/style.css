@@ -352,6 +352,20 @@ html, body {
   font-family: 'Space Mono', monospace;
   font-size: 11px;
   letter-spacing: 0.08em;
+  opacity: 1;
+  transition: opacity 0.4s ease;
+}
+
+#site-nav.nav-autohidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
+#nav-hover-zone {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  height: 56px;
+  z-index: 9;
 }
 
 #site-nav .logo {
@@ -394,6 +408,129 @@ html, body {
 
 .transport-about:hover {
   color: #ff2020;
+}
+
+.transport-controls-link {
+  display: block;
+  width: 100%;
+  background: none;
+  border: none;
+  text-align: center;
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 9px;
+  letter-spacing: 1px;
+  color: rgba(255, 255, 255, 0.3);
+  padding: 2px 0 6px;
+  cursor: pointer;
+  transition: color 0.15s;
+}
+
+.transport-controls-link:hover {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+/* ── Controls help overlay ── */
+#controls-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 500;
+  background: rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+#controls-overlay.hidden {
+  display: none;
+}
+
+#controls-modal {
+  background: #f8f8f6;
+  border-radius: 16px;
+  width: 560px;
+  font-family: 'Inter', sans-serif;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35), 0 2px 8px rgba(0, 0, 0, 0.15);
+  overflow: hidden;
+}
+
+#controls-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 22px 28px 18px;
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: rgba(0, 0, 0, 0.85);
+  font-family: 'Inter', sans-serif;
+}
+
+#btn-controls-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  background: none;
+  border: 1.5px solid rgba(0, 0, 0, 0.25);
+  border-radius: 50%;
+  color: rgba(0, 0, 0, 0.45);
+  font-size: 12px;
+  cursor: pointer;
+  transition: border-color 0.12s, color 0.12s;
+  flex-shrink: 0;
+}
+
+#btn-controls-close:hover {
+  border-color: rgba(0, 0, 0, 0.6);
+  color: rgba(0, 0, 0, 0.8);
+}
+
+#controls-modal-body {
+  padding: 8px 28px 32px;
+  display: grid;
+  grid-template-columns: auto auto auto;
+  column-gap: 20px;
+  row-gap: 10px;
+  font-size: 15px;
+  letter-spacing: 0.04em;
+}
+
+.cm-row {
+  display: contents;
+}
+
+.cm-spacer span {
+  display: block;
+  height: 8px;
+}
+
+.cm-action {
+  text-align: right;
+  color: rgba(0, 0, 0, 0.85);
+  white-space: nowrap;
+}
+
+.cm-kb {
+  color: rgba(0, 0, 0, 0.45);
+  white-space: nowrap;
+  padding-left: 16px;
+}
+
+.cm-mouse {
+  color: rgba(0, 0, 0, 0.45);
+  white-space: nowrap;
+}
+
+.cm-faint {
+  opacity: 0.35;
+}
+
+.cm-mouse em,
+.cm-kb em {
+  font-style: italic;
 }
 
 #c-hint {
