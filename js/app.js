@@ -139,21 +139,23 @@ async function initMap() {
 
   _initDrag();
 
-  // Touch devices: tap the map to toggle UI visibility
+  // Touch devices: tap the map to toggle UI visibility.
+  // Listening directly on `map` (not document) because gmp-map-3d's shadow DOM
+  // may swallow touch events before they bubble to document on some browsers.
+  // UI overlay elements sit above the map, so taps on them never reach map.
   if (isTouch) {
     let _tapStart = null;
-    document.addEventListener('touchstart', (e) => {
-      const inUI = ['transport', 'search-bar', 'site-nav', 'nav-hover-zone', 'controls-overlay']
-        .some(id => { const el = document.getElementById(id); return el && el.contains(e.target); });
-      _tapStart = inUI ? null : { x: e.touches[0].clientX, y: e.touches[0].clientY, t: Date.now() };
+    map.addEventListener('pointerdown', (e) => {
+      if (e.pointerType !== 'touch') return;
+      _tapStart = { x: e.clientX, y: e.clientY, t: Date.now() };
     }, { passive: true });
-    document.addEventListener('touchend', (e) => {
-      if (!_tapStart) return;
-      const dx = Math.abs(e.changedTouches[0].clientX - _tapStart.x);
-      const dy = Math.abs(e.changedTouches[0].clientY - _tapStart.y);
+    map.addEventListener('pointerup', (e) => {
+      if (!_tapStart || e.pointerType !== 'touch') return;
+      const dx = Math.abs(e.clientX - _tapStart.x);
+      const dy = Math.abs(e.clientY - _tapStart.y);
       const dt = Date.now() - _tapStart.t;
       _tapStart = null;
-      if (dx < 10 && dy < 10 && dt < 300) _toggleMobileUI();
+      if (dx < 20 && dy < 20 && dt < 400) _toggleMobileUI();
     }, { passive: true });
   }
 
