@@ -450,13 +450,19 @@
       meta.className = 'card-meta';
 
       const loc = document.createElement('div');
-      loc.className        = 'card-location loading';
-      loc.textContent      = '···';
-      loc.dataset.startLat = card.firstFrame.lat;
-      loc.dataset.startLng = card.firstFrame.lng;
-      loc.dataset.endLat   = card.lastFrame.lat;
-      loc.dataset.endLng   = card.lastFrame.lng;
-      loc.dataset.ugoId    = card.ugoId;
+      loc.dataset.ugoId = card.ugoId;
+      if (card.locationLabel) {
+        loc.className   = 'card-location';
+        loc.textContent = card.locationLabel;
+        localStorage.setItem(`ugo-geo-${card.ugoId}`, card.locationLabel);
+      } else {
+        loc.className        = 'card-location loading';
+        loc.textContent      = '···';
+        loc.dataset.startLat = card.firstFrame.lat;
+        loc.dataset.startLng = card.firstFrame.lng;
+        loc.dataset.endLat   = card.lastFrame.lat;
+        loc.dataset.endLng   = card.lastFrame.lng;
+      }
       meta.appendChild(loc);
 
       const details = document.createElement('div');

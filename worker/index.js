@@ -46,7 +46,9 @@ async function buildCards(env, includeHidden = false) {
       const pathObj = await env.UGO_PATHS.get(obj.key);
       if (!pathObj) return null;
       const data = await pathObj.json();
-      return { ugoId, hidden: hiddenSet.has(ugoId), ...data };
+      const rawGeo = await env.UGO_GEOCODES.get(ugoId);
+      const locationLabel = (rawGeo && rawGeo !== '—' && !rawGeo.includes('County')) ? rawGeo : null;
+      return { ugoId, hidden: hiddenSet.has(ugoId), locationLabel, ...data };
     })
   );
   return cards
