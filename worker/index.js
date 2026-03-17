@@ -156,6 +156,8 @@ export default {
       if (obj) return new Response(obj.body, { headers: { ...corsHeaders, 'Content-Type': 'text/xml' } });
 
       // Fall back to GitHub gist search (legacy gist ID URLs)
+      // Filenames use dashed UUID format, so convert 32-char ID to UUID for matching
+      const idAsUuid = id.replace(/^([0-9a-f]{8})([0-9a-f]{4})([0-9a-f]{4})([0-9a-f]{4})([0-9a-f]{12})$/, '$1-$2-$3-$4-$5');
       let page = 1;
       while (true) {
         const res   = await fetch(`https://api.github.com/gists?per_page=100&page=${page}`, {
@@ -163,7 +165,7 @@ export default {
         });
         const gists = await res.json();
         if (!gists.length) break;
-        const match = gists.find(g => Object.keys(g.files).some(f => f.includes(id)));
+        const match = gists.find(g => Object.keys(g.files).some(f => f.includes(idAsUuid) || f.includes(id)));
         if (match) {
           const file = Object.values(match.files)[0];
           const raw  = await fetch(file.raw_url);
