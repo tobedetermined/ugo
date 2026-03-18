@@ -281,7 +281,14 @@ export default {
         }), {
           httpMetadata: { contentType: 'application/json' },
         });
-        // Invalidate the public gallery cache so the new UGO appears immediately
+        // New UGOs are hidden by default until manually shown via edit mode
+        const visObj = await env.UGO_GALLERY.get('visibility.json');
+        const visibility = visObj ? await visObj.json() : { hidden: [] };
+        visibility.hidden.push(ugoId);
+        await env.UGO_GALLERY.put('visibility.json', JSON.stringify(visibility), {
+          httpMetadata: { contentType: 'application/json' },
+        });
+        // Invalidate the public gallery cache
         await env.UGO_GALLERY.delete('card-list-gallery.json');
       }
     }
