@@ -96,7 +96,7 @@ class WelcomeMessage {
       _gridToWorld(...b, DEPTH_U),
       _gridToWorld(...a, DEPTH_U),
     ];
-    poly.outerCoordinates = coords;
+    poly.path = coords;
     poly._pts = coords;
     this.map.appendChild(poly);
     this._overlays.push(poly);
@@ -153,7 +153,7 @@ class WelcomeMessage {
           el.path = shifted;
           el.strokeColor = `rgba(255, 50, 50, ${(alpha * 0.9).toFixed(3)})`;
         } else {
-          el.outerCoordinates = shifted;
+          el.path = shifted;
           el.fillColor = `rgba(255, 30, 30, ${(alpha * 0.22).toFixed(3)})`;
         }
       });

@@ -1,6 +1,13 @@
 let issCache = null;
 let issCacheTime = 0;
 
+// TLE cache TTLs in seconds per group
+const TLE_TTL_S = {
+  'stations': 2 * 60 * 60,   // 2 hours — ISS LEO, drifts fast
+  'gps-ops':  6 * 60 * 60,   // 6 hours — GPS MEO, very stable
+};
+const TLE_TTL_DEFAULT_S = 2 * 60 * 60;
+
 // Parse downsampled path data from KML text
 function parsePathFromKml(kmlText) {
   const m = kmlText.match(/<value><!\[CDATA\[([\s\S]*?)\]\]><\/value>/);
@@ -68,6 +75,45 @@ export default {
 
     if (request.method === 'OPTIONS') {
       return new Response(null, { status: 204, headers: corsHeaders });
+    }
+
+    // TLE cache purge — DELETE /tle?group=stations (or gps-ops, or omit for all)
+    if (request.method === 'DELETE' && url.pathname === '/tle') {
+      const cache = caches.default;
+      const group = url.searchParams.get('group');
+      const groups = group ? [group] : Object.keys(TLE_TTL_S);
+      const results = await Promise.all(
+        groups.map(async g => {
+          const key = new Request(`https://celestrak-cache.internal/tle/${g}`);
+          const deleted = await cache.delete(key);
+          return { group: g, deleted };
+        })
+      );
+      return new Response(JSON.stringify(results), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
+
+    // TLE proxy — fetches from CelesTrak server-side, cached via CF Cache API
+    // Usage: /tle?group=stations  or  /tle?group=gps-ops
+    if (url.pathname === '/tle') {
+      const group = url.searchParams.get('group');
+      if (!group) return new Response('Missing group param', { status: 400, headers: corsHeaders });
+
+      const cache = caches.default;
+      const cacheKey = new Request(`https://celestrak-cache.internal/tle/${group}`);
+      const cached = await cache.match(cacheKey);
+      if (cached) {
+        const body = await cached.text();
+        return new Response(body, { headers: { ...corsHeaders, 'Content-Type': 'text/plain', 'X-Cache': 'HIT' } });
+      }
+
+      const res = await fetch(`https://celestrak.org/NORAD/elements/gp.php?GROUP=${encodeURIComponent(group)}&FORMAT=tle`);
+      if (!res.ok) return new Response(`CelesTrak error: ${res.status}`, { status: 502, headers: corsHeaders });
+      const text = await res.text();
+      const ttl = TLE_TTL_S[group] ?? TLE_TTL_DEFAULT_S;
+      await cache.put(cacheKey, new Response(text, {
+        headers: { 'Content-Type': 'text/plain', 'Cache-Control': `public, max-age=${ttl}` },
+      }));
+      return new Response(text, { headers: { ...corsHeaders, 'Content-Type': 'text/plain', 'X-Cache': 'MISS' } });
     }
 
     // ISS position — cached for 1 second

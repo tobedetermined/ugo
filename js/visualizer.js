@@ -128,7 +128,7 @@ class UGOVisualizer {
         altitudeMode:          AltitudeMode.ABSOLUTE,
         drawsOccludedSegments: false,
       });
-      quad.outerCoordinates = [
+      quad.path = [
         { lat: a.eye.lat, lng: a.eye.lng, altitude: a.eye.altitude },
         { lat: b.eye.lat, lng: b.eye.lng, altitude: b.eye.altitude },
         { lat: b.eye.lat, lng: b.eye.lng, altitude: bFloor },

@@ -35,8 +35,8 @@ let _preloadedRecording = null;   // KML pre-fetched during initMap to avoid a s
 let _appState = 'ready'; // 'ready' | 'recording' | 'paused' | 'visualised'
 let _durationTimer = null;
 let issTracker;
-let tiangongTracker;
-let _satTimer = null;
+let tiangongTracker = null;
+let gpsTracker;
 
 const isTouch = window.matchMedia('(pointer: coarse)').matches
              || navigator.maxTouchPoints > 0
@@ -94,8 +94,9 @@ async function initMap() {
 
   recorder    = new UGORecorder(map, 50);
   visualizer  = new UGOVisualizer(map);
-  issTracker      = new SatTracker(map, 25544, 'rgba(255, 220, 50, 0.95)');
+  issTracker      = new SatTracker(map, 'rgba(255, 220, 50, 0.95)');
   // tiangongTracker = new SatTracker(map, 48274, 'rgba(50, 180, 255, 0.95)', 'n2yo');
+  gpsTracker      = new ConstellationTracker(map);
   // ISS off by default — user can enable via the ISS button
   document.getElementById('btn-iss').disabled = true;
 
@@ -119,6 +120,7 @@ async function initMap() {
   // document.getElementById('btn-tiangong-toggle').addEventListener('click', _toggleTiangong);
   document.getElementById('btn-iss').addEventListener('click', _flyToISS);
   // document.getElementById('btn-css').addEventListener('click', _flyToCSS);
+  document.getElementById('btn-gps-toggle').addEventListener('click', _toggleGPS);
 
   // Prevent buttons from stealing keyboard focus from the map —
   // mousedown is where focus transfer happens, preventDefault stops it
@@ -819,8 +821,6 @@ function _toggleISS() {
     const arrowBtn = document.getElementById('btn-iss');
     arrowBtn.classList.remove('blink');
     arrowBtn.disabled = true;
-    clearInterval(_satTimer);
-    _satTimer = null;
   } else {
     issTracker.show();
     btn.classList.add('active');
@@ -831,20 +831,36 @@ function _toggleISS() {
       arrowBtn.classList.remove('blink');
       arrowBtn.disabled = false;
     });
-    _startSatTimer();
   }
 }
 
-function _startSatTimer() {
-  clearInterval(_satTimer);
-  const trackers = [issTracker/*, tiangongTracker*/];
-  let i = 0;
-  _satTimer = setInterval(() => {
-    const t = trackers[i % trackers.length];
-    if (t._visible) t._fetch();
-    i++;
-  }, 2000);
+function _toggleGPS() {
+  const btn = document.getElementById('btn-gps-toggle');
+  if (gpsTracker._visible) {
+    gpsTracker.hide();
+    btn.classList.remove('active');
+  } else {
+    btn.disabled    = true;
+    btn.textContent = 'GPS…';
+    gpsTracker.onceReady(() => {
+      btn.disabled    = false;
+      btn.textContent = 'GPS';
+      btn.classList.add('active');
+      map.flyCameraTo({
+        endCamera:      { center: { lat: 0, lng: 0, altitude: 0 }, range: 63000000, tilt: 0, heading: 0 },
+        durationMillis: 2500,
+      });
+    });
+    gpsTracker.onceError(() => {
+      btn.disabled    = false;
+      btn.textContent = 'GPS';
+      btn.style.borderColor = 'rgba(255, 80, 80, 0.9)';
+      setTimeout(() => { btn.style.borderColor = ''; }, 1500);
+    });
+    gpsTracker.show();
+  }
 }
+
 
 function _toggleTiangong() {
   const btn = document.getElementById('btn-tiangong-toggle');
@@ -873,18 +889,9 @@ async function _flyToCSS() {
   });
 }
 
-async function _flyToISS() {
-  let pos = issTracker.lastPos;
-  if (!pos) {
-    const btn = document.getElementById('btn-iss');
-    const orig = btn.textContent;
-    btn.textContent = '…';
-    btn.disabled = true;
-    pos = await issTracker.fetchPosition();
-    btn.textContent = orig;
-    btn.disabled = false;
-    if (!pos) return;
-  }
+function _flyToISS() {
+  const pos = issTracker.lastPos;
+  if (!pos) return;
   map.flyCameraTo({
     endCamera: {
       center:  { lat: pos.lat, lng: pos.lng, altitude: pos.altitudeM },
@@ -1003,6 +1010,7 @@ function _updateCameraReadout() {
     _metrics._lastEyeAlt = eyeAlt;
     if (hudDirty) _updateDevHud();
   }
+  if (gpsTracker?._visible) gpsTracker.setCameraFromMap(map);
 }
 
 // ── Search ────────────────────────────────────────────────────────────────────

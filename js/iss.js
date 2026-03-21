@@ -1,23 +1,23 @@
 /**
- * SatTracker — shows a satellite as a 3-D wireframe model on the globe.
+ * SatTracker — shows the ISS as a 3-D wireframe model on the globe.
  *
- * Uses the wheretheiss.at API to get real-time position. For the ISS, renders
- * a simplified wireframe: main truss, 8 solar array wings, module stack, and
- * Zvezda mini-wings.
+ * Fetches a single TLE from CelesTrak and propagates position locally using
+ * satellite.js (SGP4). No per-tick API calls — position is computed every 5 s.
+ * TLE is refreshed every 2 hours (ISS at ~410 km LEO drifts faster than GPS).
  *
  * ISS_SCALE multiplies real dimensions so the model is visible at orbital
- * distance. Real truss ≈ 109 m; at scale 50 that becomes ~5.4 km.
+ * distance. Real truss ≈ 109 m; at scale 100 that becomes ~10.9 km.
  */
 const ISS_SCALE = 100;
 
 class SatTracker {
-  constructor(map3d, noradId, color, apiType = 'wheretheiss') {
+  constructor(map3d, color) {
     this.map      = map3d;
-    this.noradId  = noradId;
     this.color    = color;
-    this.apiType  = apiType;
-    this._lines    = [];
-    this._timer    = null;
+    this._lines   = [];
+    this._satrec  = null;    // parsed TLE satrec
+    this._posTimer = null;   // 5s propagation interval
+    this._tleTimer = null;   // 2h TLE refresh interval
     this._visible  = false;
     this.lastPos   = null;
     this._onReady  = null;
@@ -27,65 +27,67 @@ class SatTracker {
   // Register a one-shot callback fired after the first position is rendered.
   onceReady(cb) { this._onReady = cb; }
 
-  show() {
+  async show() {
     if (this._visible) return;
     this._visible = true;
-    this._fetch();
+    const ok = await this._fetchTLE();
+    if (!ok) { this._visible = false; return; }
+    this._propagateAndDraw();
+    this._startTimers();
   }
 
   hide() {
     this._visible  = false;
     this._hasDrawn = false;
     this._onReady  = null;
+    clearInterval(this._posTimer); this._posTimer = null;
+    clearInterval(this._tleTimer); this._tleTimer = null;
     this._clearLines();
   }
 
-  async fetchPosition() {
+  async _fetchTLE() {
     try {
-      let lat, lng, altKm;
-
-      if (this.apiType === 'n2yo') {
-        const n2yoUrl = `https://api.n2yo.com/rest/v1/satellite/positions/${this.noradId}/0/0/0/1/&apiKey=${window.N2YO_API_KEY}`;
-        const res  = await fetch(`https://corsproxy.io/?url=${encodeURIComponent(n2yoUrl)}`);
-        if (!res.ok) {
-          console.warn(`UGO: N2YO HTTP ${res.status}`, await res.text().catch(() => ''));
-          return null;
+      const res = await fetch(`${WORKER_URL}/tle?group=stations`);
+      if (!res.ok) { console.warn('UGO: ISS TLE HTTP', res.status); return false; }
+      const lines = (await res.text()).trim().split('\n').map(l => l.trim()).filter(Boolean);
+      // Find ISS by NORAD ID 25544 (appears on line 1 as "1 25544U ...")
+      for (let i = 0; i + 2 < lines.length; i += 3) {
+        if (lines[i + 1].startsWith('1 25544')) {
+          this._satrec = satellite.twoline2satrec(lines[i + 1], lines[i + 2]);
+          console.log('UGO: ISS TLE loaded');
+          return true;
         }
-        const data = await res.json();
-        if (!data.positions?.[0]) {
-          console.warn('UGO: N2YO no positions in response', data);
-          return null;
-        }
-        const pos  = data.positions[0];
-        if (!pos) return null;
-        lat   = pos.satlatitude;
-        lng   = pos.satlongitude;
-        altKm = pos.sataltitude;
-      } else {
-        const res  = await fetch('https://api.wheretheiss.at/v1/satellites/25544');
-        if (res.status === 429) return null;
-        const data = await res.json();
-        if (typeof data.latitude !== 'number') return null;
-        const delta = data.timestamp - (this._lastTimestamp || data.timestamp);
-        console.log('ISS ts:', data.timestamp, 'Δ:', delta, 's');
-        if (data.timestamp === this._lastTimestamp) return null;
-        this._lastTimestamp = data.timestamp;
-        lat   = data.latitude;
-        lng   = data.longitude;
-        altKm = data.altitude;
       }
-
-      this.lastPos = { lat, lng, altitudeM: altKm * 1000 };
-      return this.lastPos;
+      console.warn('UGO: ISS TLE not found in stations group');
+      return false;
     } catch (e) {
-      console.warn(`UGO: satellite ${this.noradId} fetch failed`, e);
-      return null;
+      console.warn('UGO: ISS TLE fetch failed', e);
+      return false;
     }
   }
 
-  async _fetch() {
-    const pos = await this.fetchPosition();
-    if (pos) this._update(pos.lat, pos.lng, pos.altitudeM);
+  _propagateAndDraw() {
+    if (!this._visible || !this._satrec) return;
+    const now    = new Date();
+    const gmst   = satellite.gstime(now);
+    const result = satellite.propagate(this._satrec, now);
+    if (!result.position) return;
+    const geo  = satellite.eciToGeodetic(result.position, gmst);
+    const lat  = satellite.degreesLat(geo.latitude);
+    const lng  = satellite.degreesLong(geo.longitude);
+    const altM = geo.height * 1000;
+    this.lastPos = { lat, lng, altitudeM: altM };
+    this._update(lat, lng, altM);
+  }
+
+  _startTimers() {
+    this._posTimer = setInterval(() => {
+      if (this._visible) this._propagateAndDraw();
+    }, 5_000);
+    this._tleTimer = setInterval(async () => {
+      if (!this._visible) return;
+      if (await this._fetchTLE()) this._propagateAndDraw();
+    }, 2 * 60 * 60 * 1000);
   }
 
   async _update(lat, lng, altitudeM) {
