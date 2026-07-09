@@ -424,6 +424,13 @@ async function _stopRecording() {
 
   _enterState('visualised');
 
+  // Reveal: pull back to frame the whole path — the render is the payoff,
+  // so never leave the user parked inside their own (invisible) curtain.
+  const overviewCam = _overviewCamera(currentRecording);
+  if (overviewCam) {
+    map.flyCameraTo({ endCamera: overviewCam, durationMillis: 3000 });
+  }
+
   // Auto-save to Gist archive
   const kml = exportKML(currentRecording);
   const isLocal = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
@@ -511,7 +518,10 @@ function _overviewCamera(recording) {
   const principalBearing = Math.atan2(pdx, pdy) * 180 / Math.PI;
   const heading = (principalBearing + 90 + 360) % 360;
   const diagKm  = _haversineKm(bb.south, bb.west, bb.north, bb.east);
-  const rangeM  = Math.max(diagKm * 1000 * 1.8, 5000);
+  // High flights need range driven by path altitude, not ground footprint:
+  // an orbital-altitude wander can have a tiny lat/lng box.
+  const maxAltM = recording.metadata.maxAltitude || 0;
+  const rangeM  = Math.max(diagKm * 1000 * 1.8, maxAltM * 2, 5000);
 
   return { center: { lat: centerLat, lng: centerLng, altitude: 0 }, range: rangeM, tilt: 55, heading };
 }
