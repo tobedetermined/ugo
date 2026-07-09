@@ -114,3 +114,15 @@ The about page's three verbs (RECORD / FLY / RENDER) are exactly right, and the
 app already does all three — but the *emotional* sequence only completes if the
 render is shown to you (finding 1). Everything else on this list is polish;
 that one is the product.
+
+## Post-fix addendum (same evening)
+
+Finding 1 (the reveal) was implemented (`e62d9da`), pushed, and verified on the
+live site: STOP now auto-flies to the `_overviewCamera` framing and the curtain
+is visible without any user action. Two follow-ups noted during verification:
+- **Framing tuning:** the path can sit off-center at tilt 55; a later pass could
+  bias the framing toward the path or lower the tilt for tall recordings.
+- **Deploy caching:** the first verification ran a stale cached `app.js`
+  (deploy reached the CDN in ~20 s, but the browser kept the old script until a
+  hard reload). Consider versioned asset URLs (`app.js?v=<hash>`) so returning
+  visitors pick up changes immediately.
